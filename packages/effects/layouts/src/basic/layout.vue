@@ -208,8 +208,8 @@ const headerSlots = computed(() => {
         v-if="preferences.logo.enable"
         :class="logoClass"
         :collapsed="logoCollapsed"
-        :src="preferences.logo.source"
-        :text="preferences.app.name"
+        :src="'/favicon.ico'"
+        :text="'CSU KGs'"
         :theme="showHeaderNav ? headerTheme : theme"
       />
     </template>

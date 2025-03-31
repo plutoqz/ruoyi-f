@@ -116,5 +116,9 @@
       "canvas",
       "node-gyp"
     ]
+  },
+  "dependencies": {
+    "@amap/amap-jsapi-loader": "^1.0.1",
+    "ol": "^10.4.0"
   }
 }

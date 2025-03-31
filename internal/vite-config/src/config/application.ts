@@ -44,6 +44,7 @@ function defineApplicationConfig(userConfigPromise?: DefineApplicationOptions) {
       print: !isBuild,
       printInfoMap: {
         'RuoYi Admin Docs': 'https://doc.pandarobot.chat/',
+        //'RuoYi Admin Docs': 'CSU KGs',
       },
       pwa: true,
       pwaOptions: getDefaultPwaOptions(appTitle),

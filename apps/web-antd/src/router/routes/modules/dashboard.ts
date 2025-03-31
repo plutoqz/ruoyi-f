@@ -10,6 +10,7 @@ const routes: RouteRecordRaw[] = [
       icon: 'lucide:layout-dashboard',
       order: -1,
       title: $t('page.dashboard.title'),
+      pageTitle: 'CSU KGs' // 添加 pageTitle，用于设置页面标题
     },
     name: 'Dashboard',
     path: '/',
@@ -21,6 +22,7 @@ const routes: RouteRecordRaw[] = [
         meta: {
           icon: 'carbon:workspace',
           title: $t('page.dashboard.workspace'),
+          pageTitle: 'CSU KGs' // 添加 pageTitle，用于设置页面标题
         },
       },
     ],

@@ -33,7 +33,7 @@ const defaultPreferences: Preferences = {
   copyright: {
     companyName: 'Vben',
     companySiteLink: 'https://www.vben.pro',
-    date: '2024',
+    date: '2025',
     enable: true,
     icp: '',
     icpLink: '',
@@ -49,7 +49,7 @@ const defaultPreferences: Preferences = {
   },
   logo: {
     enable: true,
-    source: 'https://unpkg.com/@vbenjs/static-source@0.1.7/source/logo-v1.webp',
+    source: '/favicon.ico',
   },
   navigation: {
     accordion: true,
