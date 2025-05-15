@@ -53,10 +53,7 @@ const router = useRouter();
 
 const text = ref('https://vben.vvbin.cn');
 
-const qrcode = useQRCode(text, {
-  errorCorrectionLevel: 'H',
-  margin: 4,
-});
+const qrcode = useQRCode(text, {errorCorrectionLevel: 'H',margin: 4,});
 
 function goToLogin() {
   router.push(props.loginPath);

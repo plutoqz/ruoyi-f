@@ -6,7 +6,7 @@ declare module 'vue-router' {
   // eslint-disable-next-line @typescript-eslint/no-empty-object-type
   interface RouteMeta extends IRouteMeta {}
 }
-
+declare var node: any;
 export interface VbenAdminProAppConfigRaw {
   // 后端接口地址
   VITE_GLOB_API_URL: string;

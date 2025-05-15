@@ -64,6 +64,7 @@
     "@changesets/changelog-github": "catalog:",
     "@changesets/cli": "catalog:",
     "@playwright/test": "catalog:",
+    "@types/cytoscape": "^3.21.9",
     "@types/node": "catalog:",
     "@vben/commitlint-config": "workspace:*",
     "@vben/eslint-config": "workspace:*",
@@ -84,6 +85,8 @@
     "husky": "catalog:",
     "is-ci": "catalog:",
     "lint-staged": "catalog:",
+    "monaco-editor": "^0.52.2",
+    "monaco-editor-webpack-plugin": "^7.1.0",
     "playwright": "catalog:",
     "rimraf": "catalog:",
     "tailwindcss": "catalog:",
@@ -119,6 +122,13 @@
   },
   "dependencies": {
     "@amap/amap-jsapi-loader": "^1.0.1",
-    "ol": "^10.4.0"
+    "@google/genai": "^0.13.0",
+    "@vueuse/integrations": "^13.0.0",
+    "axios": "^1.8.4",
+    "cytoscape": "^3.31.2",
+    "cytoscape-fcose": "^2.2.0",
+    "neovis.js": "^2.1.0",
+    "ol": "^10.4.0",
+    "vis-network": "^9.1.9"
   }
 }

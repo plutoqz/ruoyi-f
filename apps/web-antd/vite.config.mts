@@ -16,6 +16,7 @@ export default defineConfig(async () => {
           'echarts/renderers',
           'ant-design-vue/es/locale/zh_CN',
           'ant-design-vue/es/locale/en_US',
+          'cytoscape',
         ],
       },
       plugins: [
@@ -38,9 +39,20 @@ export default defineConfig(async () => {
             target: 'http://localhost:6039',
             ws: true,
           },
+          '/neo4j': { // 新加的
+            changeOrigin: true,
+            //rewrite: (path) => path.replace(/^\/neo4j/, ''), 
+            target: 'http://localhost:6039', // 你的后端 ruoyi+neo4j 地址
+            ws: true,
+          },
         },
         warmup: {
           clientFiles: ['./index.html', './src/{views,components}/*'],
+        },
+      },
+      build: {
+        rollupOptions: {
+          external: ['cytoscape'],
         },
       },
     },
