@@ -25,7 +25,8 @@ async function bootstrap(namespace: string) {
 
   // 安装权限指令
   registerAccessDirective(app);
-
+  // 禁用滚动条
+  // document.body.style.overflow = 'hidden'
   // 配置路由及路由守卫
   app.use(router);
 

@@ -25,7 +25,7 @@
               知识更新
             </button>
             <button class="w-full bg-orange-500 text-white px-4 py-2 rounded-lg hover:bg-orange-600 transition duration-150 ease-in-out shadow-sm">
-              知识修改
+              知识管理
             </button>
             <!-- <button class="w-full bg-emerald-500 text-white px-4 py-2 rounded-lg hover:bg-emerald-600 transition duration-150 ease-in-out shadow-sm">
               查询节点

@@ -16,6 +16,7 @@ coverage
 .cache
 .turbo
 .temp
+*.csv
 dev-dist
 .stylelintcache
 yarn.lock
