@@ -473,6 +473,9 @@ importers:
       axios:
         specifier: ^1.8.4
         version: 1.8.4
+      coordtransform:
+        specifier: ^2.1.2
+        version: 2.1.2
       cytoscape:
         specifier: ^3.31.2
         version: 3.31.2
@@ -669,6 +672,9 @@ importers:
       lodash-es:
         specifier: ^4.17.21
         version: 4.17.21
+      papaparse:
+        specifier: ^5.5.3
+        version: 5.5.3
       pinia:
         specifier: 2.2.2
         version: 2.2.2(typescript@5.6.2)(vue@3.5.11(typescript@5.6.2))
@@ -5609,6 +5615,9 @@ packages:
   cookie-es@1.2.2:
     resolution: {integrity: sha512-+W7VmiVINB+ywl1HGXJXmrqkOhpKrIiVZV6tQuV54ZyQC7MMuBt81Vc336GMLoHBq5hV/F9eXgt5Mnx0Rha5Fg==}
 
+  coordtransform@2.1.2:
+    resolution: {integrity: sha512-0xLJApBlrUP+clyLJWIaqg4GXE5JTbAJb5d/CDMqebIksAMMze8eAyO6YfHEIxWJ+c42mXoMHBzWTeUrG7RFhw==}
+
   copy-anything@2.0.6:
     resolution: {integrity: sha512-1j20GZTsvKNkc4BY3NpMOM8tt///wY3FpIzozTOFO2ffuZcV61nojHXVKIy3WM+7ADCy5FVhdZYHYDdgTU0yJw==}
 
@@ -8174,6 +8183,9 @@ packages:
 
   pako@2.1.0:
     resolution: {integrity: sha512-w+eufiZ1WuJYgPXbV/PO3NCMEc3xqylkKHzp8bxp1uW4qaSNQUkwmLLEc3kKsfz8lpV1F8Ht3U1Cm+9Srog2ug==}
+
+  papaparse@5.5.3:
+    resolution: {integrity: sha512-5QvjGxYVjxO59MGU2lHVYpRWBBtKHnlIAcSe1uNFCkkptUh63NFRj0FJQm7nR67puEruUci/ZkjmEFrjCAyP4A==}
 
   param-case@3.0.4:
     resolution: {integrity: sha512-RXlj7zCYokReqWpOPH9oYivUzLYZ5vAPIfEmCTNViosC78F8F0H9y7T7gG2M39ymgutxF5gcFEsyZQSph9Bp3A==}
@@ -15141,6 +15153,8 @@ snapshots:
 
   cookie-es@1.2.2: {}
 
+  coordtransform@2.1.2: {}
+
   copy-anything@2.0.6:
     dependencies:
       is-what: 3.14.1
@@ -18128,6 +18142,8 @@ snapshots:
   package-manager-detector@0.2.0: {}
 
   pako@2.1.0: {}
+
+  papaparse@5.5.3: {}
 
   param-case@3.0.4:
     dependencies:

@@ -49,6 +49,7 @@
     "echarts": "^5.5.1",
     "jsencrypt": "^3.3.2",
     "lodash-es": "^4.17.21",
+    "papaparse": "^5.5.3",
     "pinia": "catalog:",
     "tinymce": "^7.3.0",
     "unplugin-vue-components": "^0.27.3",

@@ -125,6 +125,7 @@
     "@google/genai": "^0.13.0",
     "@vueuse/integrations": "^13.0.0",
     "axios": "^1.8.4",
+    "coordtransform": "^2.1.2",
     "cytoscape": "^3.31.2",
     "cytoscape-fcose": "^2.2.0",
     "neovis.js": "^2.1.0",

@@ -2,8 +2,8 @@
     <div class="knowledge-graph-editor-container">
       <div class="file-operations-panel">
         <div class="panel-section">
-          <h3 class="panel-title">知识图谱数据源</h3>
-          <p class="panel-description">输入Cypher查询语句从后端加载图谱，或上传文件进行本地更新。</p>
+          <h3 class="panel-title">知识图谱数据</h3>
+          <p class="panel-description">输入Cypher查询语句从后端加载图谱。</p>
           <textarea v-model="cypherQuery" placeholder="输入您的 Cypher 查询语句 (例如 MATCH (n) RETURN n LIMIT 10)..." rows="2" class="cypher-input"></textarea>
           <button @click="loadGraphFromNeo4j" class="action-button load-button" :disabled="loading">
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-database-down" viewBox="0 0 16 16" style="margin-right: 8px;">
@@ -29,10 +29,9 @@
         </div>
   
         <div class="panel-section">
-          <h4 class="panel-subtitle">本地文件更新 (前端预览)</h4>
+          <h4 class="panel-subtitle">更新知识图谱</h4>
           <p class="panel-description">
-              选择文件进行前端图谱更新预览。支持 <b>Cytoscape JSON</b> 或 <b>GeoJSON</b> 文件。
-              此操作不会修改后端数据库。
+              支持 <b>Cytoscape JSON</b> 或 <b>GeoJSON</b> 文件。
           </p>
   
           <div class="file-input-group">
@@ -47,7 +46,7 @@
               <span v-if="selectedGeoJsonFileName" class="selected-file-name">{{ selectedGeoJsonFileName }}</span>
           </div>
           <button @click="processAndApplyUpdates" class="action-button" :disabled="!canApplyUpdates">
-            处理并应用前端更新
+            应用更新
           </button>
   
           <div v-if="fileDataPreview" class="file-preview-container">
@@ -57,21 +56,17 @@
         </div>
   
         <div class="panel-section">
-          <h4 class="panel-subtitle">大模型集成 (示例)</h4>
+          <h4 class="panel-subtitle">大模型检查</h4>
           <p class="panel-description">输入您的大模型API密钥。</p>
           <input type="text" v-model="largeModelApiKey" placeholder="AIzaSyCNdBbH7zC_lTamkfS_vzEf9nyvsOPegZ4" class="text-input" />
           <button @click="useLargeModel" class="action-button secondary-button" :disabled="!largeModelApiKey">
-            调用大模型 (示例)
+            更新节点分析
           </button>
-            <button @click="logInstance" class="action-button secondary-button" style="margin-top: 10px;">检查图谱实例状态</button>
+            <button @click="useLargeModelforAll" class="action-button secondary-button" :disabled="!largeModelApiKey">生成更新报告</button>
         </div>
   
           <div v-if="updateStatus" class="update-status-message">
           {{ updateStatus }}
-        </div>
-  
-        <div v-if="isMapModalVisible" class="map-modal-placeholder">
-            地图弹窗 (位置: {{ nodeLocationName }}) - <button @click="isMapModalVisible = false">关闭</button>
         </div>
   
       </div>
@@ -116,8 +111,8 @@ const fileDataPreview = ref('');
 
 const largeModelApiKey = ref('');
 const updateStatus = ref('');
-const nodeLocationName = ref('');
-const isMapModalVisible = ref(false);
+
+const allReflashNode = [];
 
 const isInfoPanelVisible = ref(false); // Controls visibility of the new panel
 const lastUpdateSummary = ref({ // To store summary of the last file update
@@ -148,7 +143,25 @@ const predefinedColors = [
 // Base styles for Cytoscape elements
 const baseCytoscapeStyles = [
     { selector: 'node', style: {
-        'label': 'data(name)', 'background-color': 'data(color)',
+        label: function(ele) {
+                // 获取节点的 '市'、'区镇'、'村' 属性
+                const shi = ele.data('市');
+                const quZhen = ele.data('区镇');
+                const cun = ele.data('村');
+                const name = ele.data('name'); // 获取原始的 name 属性
+
+                // 按照优先级返回标签
+                if (cun) {
+                  return cun;
+                } else if (quZhen) {
+                  return quZhen;
+                } else if (shi) {
+                  return shi;
+                } else {
+                  return name; // 如果以上都没有，则显示 name 属性
+                }
+              },  
+        'background-color': 'data(color)',
         'width': 'mapData(area, 40, 80, 30, 70)', // Example, might need adjustment or removal if 'area' isn't common
         'height': 'mapData(area, 40, 80, 30, 70)',// Example
         'font-size': '10px', 'color': '#ffffff', 'text-outline-color': '#333333',
@@ -206,13 +219,6 @@ const initializeOrGetInstance = () => {
                 selectedNode.value = e.target.data();
                 console.log(e.target.data())
                 updateStatus.value = `选中节点: ${e.target.data('name') || e.target.id()}`;
-                const loc = e.target.data('村') || e.target.data('市') || e.target.data('区镇') || e.target.data('QSDWMC'); // Added QSDWMC from GeoJSON
-                if (loc) {
-                    nodeLocationName.value = loc;
-                    isMapModalVisible.value = true;
-                } else {
-                    isMapModalVisible.value = false;
-                }
             });
             cytoscapeInstance.value.on('tap', 'edge', (e) => {
                 if (!cytoscapeInstance.value) return;
@@ -227,7 +233,6 @@ const initializeOrGetInstance = () => {
                     cytoscapeInstance.value.elements().unselect();
                     selectedNode.value = null;
                     selectedEdge.value = null;
-                    isMapModalVisible.value = false;
                     updateStatus.value = "图谱交互中。";
                 }
             });
@@ -585,7 +590,6 @@ const processGeoJsonFile = async () => {
                     ...props // Include all original GeoJSON properties
                 }
             });
-
             // 3. "隶属" Relationship (地块 -> 村)
             if (villageName) {
                 edgesToAdd.push({
@@ -690,7 +694,6 @@ const applyClientSideUpdates = (dataToApply) => {
 
     const { nodesToAdd, edgesToAdd, villageDataMap, currentTimeTag } = dataToApply;
     let changesMade = false;
-
     // 1. Add Plot and Village nodes from GeoJSON processing
     nodesToAdd.forEach(nodeInfo => {
         if (nodeInfo && nodeInfo.data && nodeInfo.data.id) {
@@ -701,15 +704,19 @@ const applyClientSideUpdates = (dataToApply) => {
                     position: nodeInfo.position,
                     classes: 'updated-node'
                 });
+                // allReflashNode.push(nodeInfo.data);
                 changesMade = true;
             } else { // Node already exists, potentially update its properties
                 // cy.getElementById(nodeInfo.data.id).data(nodeInfo.data); // Simple overwrite
                 // changesMade = true;
                 console.warn(`Node ${nodeInfo.data.id} already exists. Skipping addition, consider update logic.`);
             }
-        }
+            if(nodeInfo.data.type==='地块'){
+                allReflashNode.push(nodeInfo.data);
+            }
+        };
     });
-
+    // allReflashNode.push(nodesToAdd[594].data);
     // 2. Add "隶属" and "继承" (Plot) relationships
     edgesToAdd.forEach(edgeInfo => {
         if (edgeInfo && edgeInfo.data && edgeInfo.data.id && edgeInfo.data.source && edgeInfo.data.target) {
@@ -955,14 +962,6 @@ const useLargeModel = async () => { // Make it async for await
 
     updateStatus.value = "正在准备大模型请求...";
     console.log("大模型API密钥:", largeModelApiKey.value);
-    
-    // 1. Prepare data for the prompt
-    //    The Python script expects 'current_feature' and optionally 'historical'.
-    //    We'll assume `selectedNode.value` is our `current_feature`.
-    //    For 'historical', the Python script uses `historical['Area']`.
-    //    We need to decide how to get historical data. For this example,
-    //    let's assume `selectedNode.value` might have a `last_area` property,
-    //    or we pass null/undefined if not available.
 
     const currentFeature = selectedNode.value; // Expects: TBBH, changetype, Area, DLMC, district
     
@@ -1010,13 +1009,6 @@ const useLargeModel = async () => { // Make it async for await
 
     // 3. Call the OpenAI API (or compatible API)
     try {
-        // const model = genAI.getGenerativeModel({
-        //     model: "gemini-2.0-flash", // Or "gemini-pro", or "gemini-2.0-flash" if it exists
-        //     generationConfig: {
-        //         temperature: 0.2,
-        //         responseMimeType: "application/json", // Crucial for getting JSON output directly
-        //     }
-        // });
 
         const result = await genAI.models.generateContent({model: "gemini-2.0-flash",contents:promptContent});
         console.log("Full result from model.generateContent:", JSON.stringify(result, null, 2)); // 打印完整的 result 对象
@@ -1079,6 +1071,115 @@ const useLargeModel = async () => { // Make it async for await
         updateStatus.value = `调用 Google GenAI API 失败: ${errorMessage}`;
     }
 };
+
+const useLargeModelforAll = async () => {
+    updateStatus.value = "正在准备大模型请求...";
+    console.log("大模型API密钥:", largeModelApiKey.value);
+    let outputContent = `耕地新增节点大模型分析报告\n`;
+    let count = 0;
+    for (const rec of allReflashNode){
+        if(count>5)break;
+        count++;
+        const currentFeature = rec;
+        const historicalData = {
+            Area: null // Or some other way to get historical area
+        };
+        const generatePromptJS = (current, historical = null) => {
+            const context = {
+                TBBH: current.TBBH || '未知', // Provide defaults if properties might be missing
+                changetype: current.changetype || '未知',
+                Area: current.Shape_Area || '未知',
+                DLMC: current.DLMC || '未知',
+                district: current.ZLDWMC || '未知',
+                last_area: (historical && historical.Area !== undefined) ? historical.Area : '无历史数据' // Handle if historical or its Area is null/undefined
+            };
+            
+            // This is the exact prompt template from your Python script
+            return `作为耕地数据质检专家，请分析以下变更记录：
+                    地块编号：${context.TBBH}
+                    变更类型：${context.changetype}
+                    面积：${context.Area}亩
+                    地类：${context.DLMC}
+                    行政区：${context.district}
+                    历史面积：${context.last_area}${context.last_area !== '无历史数据' ? '亩' : ''}
+                    请判断是否存在矛盾并输出JSON：
+                    {{
+                    "矛盾类型": ["数值冲突","逻辑矛盾","政策违规"],
+                    "矛盾描述": "自然语言解释",
+                    "置信度": 0.0-1.0,
+                    "建议操作": ["修正面积","变更类型","标记异常"],
+                    "修正值": 具体数值,
+                    "依据条款": ["《耕地保护法》第X条"]
+                    }}`;
+        };
+        const promptContent = generatePromptJS(currentFeature, historicalData.Area !== undefined ? historicalData : null);
+        console.log("Generated Prompt for LLM:", promptContent);
+        try {
+
+            const result = await genAI.models.generateContent({model: "gemini-2.0-flash",contents:promptContent});
+            console.log("Full result from model.generateContent:", JSON.stringify(result, null, 2));
+            const genAIResponse = result.candidates[0].content.parts[0].text; // Access the GenerateContentResponse
+
+            if (!genAIResponse) {
+                throw new Error("Google GenAI API did not return a response object.");
+            }
+
+            const llmResponseText = genAIResponse; // Get the text content (should be JSON string)
+
+            // 4. Parse the JSON response from the LLM
+            // LLMs might sometimes wrap JSON in markdown code blocks (```json ... ```)
+            let validationResult;
+            try {
+                const jsonMatch = llmResponseText.match(/```json\s*([\s\S]*?)\s*```/);
+                if (jsonMatch && jsonMatch[1]) {
+                    console.log("Found JSON in markdown, parsing that.");
+                    validationResult = JSON.parse(jsonMatch[1]);
+                } else {
+                    validationResult = JSON.parse(llmResponseText); // Assume raw JSON
+                }
+            } catch (parseError) {
+                console.error("Failed to parse LLM JSON response:", parseError);
+                updateStatus.value = `大模型无法解析其JSON响应。内容: ${llmResponseText.substring(0, 200)}...`;
+                // Optionally, store the raw response for debugging
+                // if (selectedNode && selectedNode.value) selectedNode.value.llmRawResponse = llmResponseText;
+                return; // Stop further processing
+            }
+            outputContent+= `\n节点 "${currentFeature.TBBH || currentFeature.name || currentFeature.id}" 
+            矛盾描述: ${validationResult["矛盾描述"] || '无'} (置信度: ${validationResult["置信度"] !== undefined ? validationResult["置信度"] : 'N/A'})`;
+
+
+        } catch (error) {
+            console.error("Error calling Google GenAI API:", error);
+            let errorMessage = error.message || String(error);
+            // Google API errors might have more details in error.response or other properties
+            if (error.toString().includes("API key not valid")) {
+                errorMessage = "Google API Key is not valid. Please check your API key.";
+            } else if (error.status && error.statusText) { // Some HTTP-like errors
+                errorMessage = `API Error ${error.status}: ${error.statusText}`;
+            }
+            // For GenAI specific errors, they might have a different structure.
+            // Often, the error object itself contains useful `message` and `details`.
+            console.error("Detailed error object:", error);
+            updateStatus.value = `调用 Google GenAI API 失败: ${errorMessage}`;
+        }
+        updateStatus.value = `已完成 ${count}/${allReflashNode.length}`;
+    }
+    // 触发下载
+    const blob = new Blob([outputContent], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `耕地节点分析报告_${new Date().toISOString().slice(0, 10)}.txt`; // 文件名包含日期
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url); // 释放URL对象
+
+    updateStatus.value = `所有节点分析完成，报告已下载到本地文件 "${a.download}"。`;
+    console.log("Batch analysis complete. Report downloaded.");
+};
+
+
 const togglePinPanel = () => {
   infoPanelPinState.value = !infoPanelPinState.value;
   // If unpinning, and mouse is not over, it should hide

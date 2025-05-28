@@ -180,19 +180,19 @@ const stopDragging = () => {
 
 // 定义标签到颜色的映射，根据实际情况进行调整
 const labelColorMap = {
-  "法律": "#711007",
-  "章节": "#f76c5e",
-  "条款": "#f68e5f",
-  "土地": "#c9c19f",
-  "规划": "#50c5b7",
-  "制度": "#9cec5b",
-  "处罚":"#000000",
-  "权利":"#586ba4",
-  "义务":"#324376",
-  "政府机构":"#ddb771",
-  "其他":"#6d3d14",
-  "修订历史":"#b59da4",
-  "法律主体":"#6494aa",
+  // "法律": "#711007",
+  // "章节": "#f76c5e",
+  // "条款": "#f68e5f",
+  // "土地": "#c9c19f",
+  // "规划": "#50c5b7",
+  // "制度": "#9cec5b",
+  // "处罚":"#000000",
+  // "权利":"#586ba4",
+  // "义务":"#324376",
+  // "政府机构":"#ddb771",
+  // "其他":"#6d3d14",
+  // "修订历史":"#b59da4",
+  // "法律主体":"#6494aa",
 
   "数据":"#a6d0e4",
   "镇区":"#ff8364",
@@ -335,7 +335,24 @@ const loadGraph = async () => {
           {
             selector: 'node',
             style: {
-              label: 'data(name)',               // 节点显示 data 中的 name 属性
+              label: function(ele) {
+                // 获取节点的 '市'、'区镇'、'村' 属性
+                const shi = ele.data('市');
+                const quZhen = ele.data('区镇');
+                const cun = ele.data('村');
+                const name = ele.data('name'); // 获取原始的 name 属性
+
+                // 按照优先级返回标签
+                if (cun) {
+                  return cun;
+                } else if (quZhen) {
+                  return quZhen;
+                } else if (shi) {
+                  return shi;
+                } else {
+                  return name; // 如果以上都没有，则显示 name 属性
+                }
+              },        
               'background-color': 'data(color)',   // 节点颜色根据 data.color 属性设置
               'text-valign': 'center',             // 文本垂直居中
               'text-halign': 'center',             // 文本水平居中
@@ -358,8 +375,11 @@ const loadGraph = async () => {
           {
             selector: 'node:selected',
             style: {
-              //'background-color': '#16a34a',      // 选中节点时背景色变为绿色
-              'border-color': '#000'              // 选中节点时边框颜色变为鲜艳的绿色
+              'border-width': '2px',       // 边框宽度
+              'border-color': '#44cef6',   // 边框颜色 (金色，你可以换成任何你喜欢的颜色，如 #00FFFF 亮青色)
+              'border-style': 'solid',     // 边框样式
+              'font-size': '10px',          // 字体大小
+              'color': '#e3f9fd',          // 文字颜色
             }
           }
         ]
