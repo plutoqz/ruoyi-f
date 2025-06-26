@@ -203,13 +203,15 @@ const headerSlots = computed(() => {
     "
   >
     <!-- logo -->
+     
     <template #logo>
       <VbenLogo
         v-if="preferences.logo.enable"
         :class="logoClass"
         :collapsed="logoCollapsed"
         :src="'/favicon.ico'"
-        :text="'CSU KGs'"
+        :text="'自然资源时空知识服务系统'"
+        :textSize="13" 
         :theme="showHeaderNav ? headerTheme : theme"
       />
     </template>

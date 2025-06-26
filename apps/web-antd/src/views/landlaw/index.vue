@@ -31,7 +31,42 @@
                     无可用图例数据
                 </div>
             </div>
+            <hr class="my-4 border-gray-200" />
+            <div class="space-y-2">
+              <h3 class="text-md font-semibold text-gray-700 pt-3 border-t border-gray-200">大模型问答</h3>
+              <!-- <p class="text-xs text-gray-500 mb-3">输入您的大模型API密钥。</p> -->
+              
+              <!-- API Key Input -->
+              <input 
+                type="password" 
+                v-model="largeModelApiKey" 
+                placeholder="在此输入您的 API 密钥" 
+                class="w-full px-3 py-2 text-xs border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" 
+              />
+              <textarea 
+                type="text" 
+                v-model="QuestionToLLM" 
+                placeholder="在此输入您的问题" 
+                class="w-full px-3 py-2 text-xs border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" 
+              ></textarea>
+              <!-- Action Buttons -->
+              <div class="mt-3 space-y-2">
+                <button 
+                  @click="askLargeModel" 
+                  class="w-full px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-gray-400 disabled:cursor-not-allowed" 
+                  :disabled="!largeModelApiKey">
+                  发送问题
+                </button>
+              </div>
+              
+              <!-- Status Message -->
+              <div v-if="replyStatus" class="mt-3 p-2 text-sm text-center rounded-md" :class="replyStatus.includes('成功') ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'">
+                {{ replyStatus }}
+              </div>
+            </div>
           </div>
+          
+          
         </div>
 
         <div class="flex-1 flex flex-col border border-gray-200 rounded-lg overflow-hidden shadow-sm bg-white" style="min-height: 500px">
@@ -43,6 +78,9 @@
             加载图谱时发生错误: {{ error }}
           </div>
         </div>
+
+        
+
       </div>
          <!-- 关系详情弹窗 -->
         <div v-if="selectededge" class="fixed bottom-4 right-4 bg-white shadow-lg rounded p-4 w-80">
@@ -71,9 +109,13 @@ import fcose from 'cytoscape-fcose';
 // import Papa from 'papaparse'
 import * as Papa from 'papaparse'
 import axios from 'axios'
+import { GoogleGenAI } from "@google/genai";
 // 注册 Cytoscape 扩展
 cytoscape.use(fcose);
-
+const genAI = new GoogleGenAI({ apiKey: 'AIzaSyCNdBbH7zC_lTamkfS_vzEf9nyvsOPegZ4' });
+const largeModelApiKey = ref('');
+const replyStatus = ref('');
+const QuestionToLLM = ref('');
 const cyContainer = ref(null);      // Cytoscape 容器的引用
 const cy = ref(null)
 const loading = ref(false);         // 控制加载状态
@@ -308,6 +350,94 @@ const closeedgeDetail = () => {
   // 3. 清空选中节点引用
   selectededge.value = null
 }
+
+const askLargeModel = async () => {
+    // 1. 检查 API 密钥是否存在
+    if (!largeModelApiKey.value) {
+        replyStatus.value = "请输入大模型API密钥。";
+        return;
+    }
+
+    replyStatus.value = "正在向大模型发送请求，请稍候...";
+    console.log("使用的大模型API密钥:", largeModelApiKey.value ? "已提供" : "未提供");
+
+    // 2. 准备 API 请求参数
+    const promptContent = QuestionToLLM.value; // 从 ref 获取原始值
+
+    console.log("发送给大模型的 Prompt:", promptContent);
+    
+    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${largeModelApiKey.value}`;
+
+    // =================================================================
+    //  新增功能：为模型提供系统指令，引导其回答方向。
+    // =================================================================
+    const requestPayload = {
+        contents: [
+            {
+                role: "user",
+                parts: [{ text: promptContent }]
+            }
+        ],
+        systemInstruction: {
+            parts: [
+                {
+                    // 在这里定义模型的“角色”或背景知识
+                    text: "请优先在《中华人民共和国土地管理法》、《中华人民共和国土地管理法实施条例》和《中华人民共和国土地承包法》的框架内寻找并提供答案。如果问题明显超出该法律范围，请予以说明。"
+                }
+            ]
+        }
+    };
+
+    // 3. 使用 fetch API 发送请求
+    try {
+        const response = await fetch(apiUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(requestPayload),
+        });
+
+        const responseData = await response.json();
+
+        // 4. 检查 API 是否返回了错误
+        if (!response.ok) {
+            const errorDetails = responseData.error ? responseData.error.message : `HTTP 错误 ${response.status}: ${response.statusText}`;
+            throw new Error(errorDetails);
+        }
+
+        // 5. 健壮地解析模型生成的文本
+        if (responseData.candidates && responseData.candidates.length > 0 &&
+            responseData.candidates[0].content &&
+            responseData.candidates[0].content.parts &&
+            responseData.candidates[0].content.parts.length > 0) 
+        {
+            const llmResponseText = responseData.candidates[0].content.parts[0].text;
+            console.log("从大模型收到的原始回复:", llmResponseText);
+
+            // =================================================================
+            //  新增功能：自动去除回复中的加粗符号 (**)
+            // =================================================================
+            const cleanedResponse = llmResponseText.replace(/\*\*/g, '');
+            console.log("清理格式后的回复:", cleanedResponse);
+            
+            replyStatus.value = cleanedResponse; // 将清理后的结果更新到界面
+
+        } else {
+            // 如果响应结构不符合预期，检查是否有 blockReason
+            if (responseData.candidates && responseData.candidates[0].finishReason === 'SAFETY') {
+                 console.warn("内容被安全设置阻止:", responseData.candidates[0].safetyRatings);
+                 throw new Error("请求因安全原因被阻止。请调整您的提问内容。");
+            }
+            console.warn("API 响应结构不符合预期:", responseData);
+            throw new Error("大模型返回了未知格式的响应。");
+        }
+
+    } catch (error) {
+        console.error("调用 Google GenAI API 时发生严重错误:", error);
+        replyStatus.value = `调用大模型 API 失败: ${error.message}`;
+    }
+};
 
 
 onMounted(() => {

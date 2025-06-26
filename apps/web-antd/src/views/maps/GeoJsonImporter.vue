@@ -6,10 +6,11 @@
     >
       <i
         class="fi fi-rs-draw-polygon"
-        style="font-size: 1.25rem;color: currentColor; width: 16px; height: 28px; display: inline-block; margin-right: 24px; vertical-align: middle;"
+        style="font-size: 1rem;color: currentColor; width: 12px; height: 22px; display: inline-block; margin-right: 24px; vertical-align: middle;"
       ></i>
-      <span class="group-hover:text-blue-500 transition-colors duration-300 text-base md:text-lg" style="vertical-align: middle;">
-        矢量导入
+      
+      <span class="group-hover:text-blue-500 transition-colors duration-300 text-base md:text-sm" style="vertical-align: middle;">
+        JSON
       </span>
     </button>
     <input
@@ -19,84 +20,107 @@
       accept=".geojson,application/json"
       class="hidden"
     />
-    <p v-if="loading" class="text-sm text-gray-500 mt-1">正在加载...</p>
-    <p v-if="error" class="text-sm text-red-500 mt-1">{{ error }}</p>
+    <p v-if="loadingStatus" class="text-sm text-gray-500 mt-1">{{ loadingStatus }}</p>
+    <p v-if="errorMessage" class="text-sm text-red-500 mt-1">{{ errorMessage }}</p>
   </div>
 </template>
 
 <script setup>
 import { ref, defineEmits } from 'vue';
 
-// 定义组件可以触发的事件
-const emit = defineEmits(['geojson-loaded', 'geojson-error']);
-
-// ref 用于访问隐藏的文件输入框
+const emit = defineEmits(['geojson-loaded', 'geojson-error','right-sidebar']);
 const geojsonFileInputRef = ref(null);
-const loading = ref(false);
-const error = ref('');
+const loadingStatus = ref('');
+const errorMessage = ref('');
 
-// 方法：触发文件输入框的点击事件
 const triggerFileInput = () => {
-  error.value = ''; // 清除之前的错误信息
-  geojsonFileInputRef.value.click();
+  errorMessage.value = '';
+  loadingStatus.value = '';
+  if (geojsonFileInputRef.value) {
+    geojsonFileInputRef.value.click();
+  }
 };
 
-// 方法：处理文件选择变化
 const handleFileChange = (event) => {
-  const file = event.target.files[0];
+  const file = event.target.files && event.target.files[0];
   if (!file) {
-    console.log('没有选择文件。');
+    console.log('GeoJsonImporter: No file selected.');
     return;
   }
 
-  // 检查文件类型
-  if (file.type !== 'application/json' && !file.name.endsWith('.geojson')) {
-    const errMsg = '请选择一个 GeoJSON 或 JSON 文件。';
-    console.error(errMsg);
-    error.value = errMsg;
-    // alert(errMsg); // 避免使用 alert
-    event.target.value = ''; // 清空，以便再次选择同文件
-    emit('geojson-error', errMsg);
+  errorMessage.value = '';
+  loadingStatus.value = `正在读取文件: ${file.name}...`;
+
+  if (file.type !== 'application/json' && !file.name.toLowerCase().endsWith('.geojson') && !file.name.toLowerCase().endsWith('.json')) {
+    const typeErrorMsg = '请选择一个有效的 GeoJSON (.geojson) 或 JSON (.json) 文件。';
+    console.error('GeoJsonImporter: Invalid file type -', file.type, file.name);
+    errorMessage.value = typeErrorMsg;
+    loadingStatus.value = '';
+    emit('geojson-error', typeErrorMsg);
+    if (event.target) event.target.value = '';
     return;
   }
 
-  loading.value = true;
-  error.value = '';
+  const capturedFileName = file.name; // Capture file name immediately
   const reader = new FileReader();
 
-  reader.onload = (e) => {
+  reader.onload = (e_reader) => {
+    loadingStatus.value = '正在解析文件内容...';
+    const fileContentAsString = e_reader.target.result;
+
+    console.log('GeoJsonImporter: FileReader onload triggered.');
+    console.log('GeoJsonImporter: File content string length:', fileContentAsString ? fileContentAsString.length : 'N/A');
+    // console.log('GeoJsonImporter: File content (first 500 chars):', fileContentAsString ? fileContentAsString.substring(0, 500) : 'N/A');
+
     try {
-      const geojsonData = JSON.parse(e.target.result);
-      console.log('GeoJSON 数据在子组件解析成功:', geojsonData);
-      // 触发事件，将解析后的数据传递给父组件
-      emit('geojson-loaded', geojsonData);
+      const geojsonData = JSON.parse(fileContentAsString);
+      console.log('GeoJsonImporter: JSON.parse successful for file:', capturedFileName);
+      // console.log('GeoJsonImporter: Parsed GeoJSON (brief):', JSON.stringify(geojsonData).substring(0, 200) + "...");
+
+      const payload = { name: capturedFileName, data: geojsonData };
+      console.log('GeoJsonImporter: Preparing to emit "geojson-loaded" with payload:', {name: payload.name, dataType: typeof payload.data});
+
+      emit('geojson-loaded', payload); // This is the critical line (approx line 83 in your log)
+      
+      console.log('GeoJsonImporter: Successfully emitted "geojson-loaded" for:', capturedFileName);
+      // loadingStatus.value = `文件 "${capturedFileName}" 加载成功!`;
+
     } catch (err) {
-      const errMsg = '无法解析文件内容，请确保它是有效的 GeoJSON/JSON 格式。';
-      console.error('解析 GeoJSON 数据失败:', err);
-      error.value = errMsg;
-      // alert(errMsg);
-      emit('geojson-error', errMsg);
+      // This catch block is being entered if an error occurs during JSON.parse OR during/after emit.
+      console.error('GeoJsonImporter: Error caught in reader.onload try-catch block for file:', capturedFileName);
+      console.error('GeoJsonImporter: Error name:', err.name);
+      console.error('GeoJsonImporter: Error message:', err.message);
+      console.error('GeoJsonImporter: Error stack:', err.stack);
+      
+      const parseErrorMsg = `无法解析文件 "${capturedFileName}" 的内容。请确保它是有效的 GeoJSON/JSON 格式。`;
+      errorMessage.value = parseErrorMsg;
+      loadingStatus.value = '';
+      emit('geojson-error', parseErrorMsg);
     } finally {
-      loading.value = false;
-      // 清空文件输入框的值，以便用户可以选择同一个文件再次触发 change 事件
-      event.target.value = '';
+      if (event.target) {
+        event.target.value = ''; // Clear file input to allow re-selection of the same file
+      }
+      loadingStatus.value = ''; // Clear loading status or set to final status in try/catch
     }
   };
 
-  reader.onerror = (e) => {
-    const errMsg = '读取文件失败。';
-    console.error('读取文件失败:', e);
-    error.value = errMsg;
-    // alert(errMsg);
-    loading.value = false;
-    event.target.value = '';
-    emit('geojson-error', errMsg);
+  reader.onerror = (e_reader_error) => {
+    console.error('GeoJsonImporter: FileReader.onerror triggered for file:', capturedFileName, e_reader_error);
+    const readErrorMsg = `读取文件 "${capturedFileName}" 失败。`;
+    errorMessage.value = readErrorMsg;
+    loadingStatus.value = '';
+    emit('geojson-error', readErrorMsg);
+    if (event.target) event.target.value = '';
   };
 
-  reader.readAsText(file); // 读取文件内容为文本
+  reader.readAsText(file); // Read file as text
+  emit('right-sidebar',ture);
 };
 </script>
 
 <style scoped>
-
+/* Styles from previous Sidebar.vue for consistency if needed */
+.fi-rs-draw-polygon {
+  /* Ensure icon styles are available */
+}
 </style>

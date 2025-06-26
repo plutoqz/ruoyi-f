@@ -6,12 +6,12 @@
           <p class="panel-description">输入Cypher查询语句从后端加载图谱。</p>
           <textarea v-model="cypherQuery" placeholder="输入您的 Cypher 查询语句 (例如 MATCH (n) RETURN n LIMIT 10)..." rows="2" class="cypher-input"></textarea>
           <button @click="loadGraphFromNeo4j" class="action-button load-button" :disabled="loading">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-database-down" viewBox="0 0 16 16" style="margin-right: 8px;">
+            <!-- <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-database-down" viewBox="0 0 16 16" style="margin-right: 8px;">
               <path d="M12.5 9a3.5 3.5 0 1 1-7 0 3.5 3.5 0 0 1 7 0Z"/>
               <path d="M12.5 9a3.5 3.5 0 1 1-7 0 3.5 3.5 0 0 1 7 0Z M8 13a4.5 4.5 0 0 0 4.492-4.006C11.529 8.296 10.75 8 9.5 8S7.471 8.296 6.508 8.994A4.501 4.501 0 0 0 8 13Z"/>
               <path d="M12.5 9a3.5 3.5 0 1 1-7 0 3.5 3.5 0 0 1 7 0Zm-4.21-1.037L6.237 9.677a.5.5 0 0 1-.707-.707l2.5-2.5a.5.5 0 0 1 .707 0l2.5 2.5a.5.5 0 0 1-.707.707L8.5 7.707V11.5a.5.5 0 0 1-1 0V7.707Z"/>
               <path d="M8 1c-1.573 0-3.022.289-4.096.777C2.875 2.245 2 2.993 2 4s.875 1.755 1.904 2.223C4.978 6.711 6.427 7 8 7s3.022-.289 4.096-.777C13.125 5.755 14 5.007 14 4s-.875-1.755-1.904-2.223C11.022 1.289 9.573 1 8 1ZM2 4.234V11c0 1.007.875 1.755 1.904 2.223C4.978 13.711 6.427 14 8 14s3.022-.289 4.096-.777C13.125 12.755 14 12.007 14 11V4.234c-.308.202-.652.378-.999.518C12.022 5.245 10.573 5.5 8 5.5s-2.978-.255-4.001-.748a4.495 4.495 0 0 1-.999-.518Z"/>
-            </svg>
+            </svg> --> 
             {{ loading ? '加载中...' : '从Neo4j加载图谱' }}
           </button>
           <div class="graph-stats" v-if="nodeCount > 0 || edgeCount > 0">
@@ -34,11 +34,11 @@
               支持 <b>Cytoscape JSON</b> 或 <b>GeoJSON</b> 文件。
           </p>
   
-          <div class="file-input-group">
+          <!-- <div class="file-input-group">
               <label for="jsonFileUploadInput" class="file-input-label small-label">Cytoscape JSON 更新文件 (.json):</label>
               <input type="file" @change="handleJsonFileUpload('cytoscape', $event)" accept=".json" class="file-input" id="jsonFileUploadInput" />
               <span v-if="selectedJsonFileName" class="selected-file-name">{{ selectedJsonFileName }}</span>
-          </div>
+          </div> -->
   
           <div class="file-input-group">
               <label for="geoJsonFileUploadInput" class="file-input-label small-label">GeoJSON 更新文件 (.geojson, .json):</label>
@@ -64,7 +64,11 @@
           </button>
             <button @click="useLargeModelforAll" class="action-button secondary-button" :disabled="!largeModelApiKey">生成更新报告</button>
         </div>
-  
+        <doReport 
+            :cytoscape-instance="cytoscapeInstance" 
+            :current-time-tag="CURRENT_TIME_TAG"
+            :previous-time-tag="PREVIOUS_TIME_TAG"
+        />
           <div v-if="updateStatus" class="update-status-message">
           {{ updateStatus }}
         </div>
@@ -87,6 +91,7 @@ import cytoscape from 'cytoscape';
 import fcose from 'cytoscape-fcose';
 import axios from 'axios';
 import { GoogleGenAI } from "@google/genai";
+import doReport from './doReport.vue';
 cytoscape.use(fcose);
 
 const cytoscapeContainerRef = ref(null);
@@ -669,18 +674,32 @@ const processGeoJsonFile = async () => {
 
 
 // Helper function to get previous indicator value from Cytoscape graph
-const getPreviousIndicatorValue = (cyInstance, villageName, indicatorName, timeTag) => {
-    if (!cyInstance) return 0.0;
-    const indicatorId = `indicator_${villageName}_${indicatorName}_${timeTag}`;
-    const node = cyInstance.getElementById(indicatorId);
-    if (node.length) {
-        return parseFloat(node.data('指标值') || 0.0);
+const getPreviousIndicatorValue = async (villageName, indicatorName, timeTag) => {
+    try {
+        // 构建要发送的JSON数据体
+        const requestData = {
+            villageName,
+            indicatorName,
+            timeTag
+        };
+
+        // 发送 POST 请求到新的 /neo4j/indicator 端点
+        // 注意，第二个参数是 requestData，而不是 { params: ... }
+        const response = await axios.post('/neo4j/indicator', requestData);
+
+        // 从响应中提取数值，如果API没返回，给一个安全的默认值 0.0
+        // response.data 是后端返回的 Map
+        return response.data.value || 0.0;
+
+    } catch (error) {
+        // 这个日志现在更重要了，如果请求失败，它会打印详细的axios错误对象
+        console.error(`Failed to fetch previous value for ${indicatorName} of ${villageName}:`, error);
+        return 0.0;
     }
-    return 0.0;
 };
 
 
-const applyClientSideUpdates = (dataToApply) => {
+const applyClientSideUpdates = async (dataToApply) => {
     const cy = cytoscapeInstance.value;
     if (!cy) {
         updateStatus.value = "错误：图谱实例不可用，无法应用更新。";
@@ -737,7 +756,7 @@ const applyClientSideUpdates = (dataToApply) => {
     });
 
     // 3. Process Indicators for each village
-    villageDataMap.forEach((stats, villageName) => {
+    for (const [villageName, stats] of villageDataMap.entries()) {
         const villageIdCurrent = `village_${villageName}_${currentTimeTag}`;
         const villageNode = cy.getElementById(villageIdCurrent);
 
@@ -786,8 +805,8 @@ const applyClientSideUpdates = (dataToApply) => {
         const indicatorsToUpdate = []; // [{ name, value }]
 
         // --- 耕地总面积 & 耕地地块数量 ---
-        const prev_total_area = getPreviousIndicatorValue(cy, villageName, '耕地总面积', PREVIOUS_TIME_TAG);
-        const prev_plot_count = getPreviousIndicatorValue(cy, villageName, '耕地地块数量', PREVIOUS_TIME_TAG);
+        const prev_total_area = await getPreviousIndicatorValue(villageName, '耕地总面积', PREVIOUS_TIME_TAG);
+        const prev_plot_count = await getPreviousIndicatorValue(villageName, '耕地地块数量', PREVIOUS_TIME_TAG);
 
         const current_total_area = Math.max(0, prev_total_area + stats.create_area - stats.delete_area + stats.modify_inc_area - stats.modify_dec_area);
         const current_plot_count = Math.max(1, prev_plot_count + stats.create_count - stats.delete_count);
@@ -817,7 +836,7 @@ const applyClientSideUpdates = (dataToApply) => {
         // For simplicity, let's assume change in non-grain area is (create_area + modify_inc_area) - (change in crop_area based on ZZSXMC)
         // A more direct Python equivalent might be: prev_non_grain + (create_area_actually_non_grain - delete_area_actually_non_grain + modify_change_to_non_grain)
         // Using stats.crop_area_change which is net change for '种植粮食作物'
-        const prev_non_grain_area = getPreviousIndicatorValue(cy, villageName, '非粮化面积', PREVIOUS_TIME_TAG);
+        const prev_non_grain_area = await getPreviousIndicatorValue(villageName, '非粮化面积', PREVIOUS_TIME_TAG);
         // Change in total area - change in grain crop area = change in non-grain area
         const total_area_delta = current_total_area - prev_total_area;
         const current_non_grain_area = Math.max(0, prev_non_grain_area + (total_area_delta - stats.crop_area_change)).toFixed(4);
@@ -826,9 +845,11 @@ const applyClientSideUpdates = (dataToApply) => {
         // --- 非粮化比例 ---
         const current_non_grain_rate = current_total_area > 0 ? (parseFloat(current_non_grain_area) / current_total_area).toFixed(4) : 0;
         indicatorsToUpdate.push({ name: '非粮化比例', value: current_non_grain_rate });
+        console.log(current_total_area);
+        console.log(current_non_grain_rate);
 
         // --- 耕种面积 & 土地垦殖率 (related to '未耕种') ---
-        const prev_cultivated_area = getPreviousIndicatorValue(cy, villageName, '耕种面积', PREVIOUS_TIME_TAG);
+        const prev_cultivated_area = await getPreviousIndicatorValue(villageName, '耕种面积', PREVIOUS_TIME_TAG);
         // current_cultivated_area = prev_cultivated_area + total_area_delta - stats.uncultivated_change;
         // OR simpler: current_total_area - (current total uncultivated area)
         // We need total uncultivated area. stats.uncultivated_change is just the delta.
@@ -908,7 +929,7 @@ const applyClientSideUpdates = (dataToApply) => {
                 }
             }
         });
-    });
+    };
 
 
     if (changesMade) {
@@ -1098,10 +1119,10 @@ const useLargeModelforAll = async () => {
             return `作为耕地数据质检专家，请分析以下变更记录：
                     地块编号：${context.TBBH}
                     变更类型：${context.changetype}
-                    面积：${context.Area}亩
+                    面积：${context.Area}平方米
                     地类：${context.DLMC}
                     行政区：${context.district}
-                    历史面积：${context.last_area}${context.last_area !== '无历史数据' ? '亩' : ''}
+                    历史面积：${context.last_area}${context.last_area !== '无历史数据' ? '平方米' : ''}
                     请判断是否存在矛盾并输出JSON：
                     {{
                     "矛盾类型": ["数值冲突","逻辑矛盾","政策违规"],
@@ -1323,6 +1344,7 @@ const togglePinPanel = () => {
   border-color: #3b82f6;
   box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15); /* Softer focus shadow */
   outline: none;
+  color: #1a232f;
 }
 
 /* Action buttons */

@@ -26,10 +26,15 @@ interface Props {
    * @zh_CN Logo 主题
    */
   theme?: string;
+  /**
+   * @zh_CN Logo 文本字号（单位 px）
+   */
+  textSize?: number;
 }
 
 defineOptions({
   name: 'VbenLogo',
+
 });
 
 withDefaults(defineProps<Props>(), {
@@ -38,15 +43,16 @@ withDefaults(defineProps<Props>(), {
   logoSize: 32,
   src: '',
   theme: 'light',
+  textSize: 18,
 });
 </script>
 
 <template>
-  <div :class="theme" class="flex h-full items-center text-lg">
+  <div :class="theme" class="flex h-full items-center" :style="{ fontSize: textSize + 'px' }">
     <a
       :class="$attrs.class"
       :href="href"
-      class="flex h-full items-center gap-2 overflow-hidden px-3 text-lg leading-normal transition-all duration-500"
+      class="flex h-full items-center gap-2 overflow-hidden px-3 leading-normal transition-all duration-500"
     >
       <VbenAvatar
         v-if="src"
@@ -56,7 +62,8 @@ withDefaults(defineProps<Props>(), {
       />
       <span
         v-if="!collapsed"
-        class="text-foreground truncate text-nowrap font-semibold"
+        class="text-foreground truncate whitespace-nowrap font-semibold"
+        :style="{ fontSize: textSize + 'px' }"
       >
         {{ text }}
       </span>

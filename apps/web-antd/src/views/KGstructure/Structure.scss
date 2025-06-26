@@ -1,0 +1,325 @@
+.kg-generator {
+            --primary-color: #3498db;
+            --secondary-color: #2980b9;
+            --light-gray: #f5f7fa;
+            --medium-gray: #ecf0f1;
+            --dark-gray: #34495e;
+            --text-color: #333;
+            --border-color: #ddd;
+            --white-color: #fff;
+            --danger-color: #e74c3c;
+            --success-color: #2ecc71;
+
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--light-gray);
+            color: var(--text-color);
+        }
+
+        .header {
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            color: white;
+            padding: 1rem 2rem;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .header h1 {
+            margin: 0;
+            font-size: 1.5rem;
+        }
+
+        .main-content {
+            display: flex;
+            flex: 1;
+            padding: 1.5rem;
+            gap: 1.5rem;
+            overflow: hidden;
+        }
+
+        .control-panel {
+            flex: 0 0 40%;
+            max-width: 500px;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+            overflow-y: auto;
+            padding-right: 1rem;
+        }
+
+        .visualization-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background-color: var(--white-color);
+            border-radius: 10px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+            overflow: hidden;
+        }
+
+        /* 卡片和分段样式 */
+        .card {
+            background-color: var(--white-color);
+            border-radius: 10px;
+            padding: 1.5rem;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+        }
+
+        .card h2 {
+            font-size: 1.3rem;
+            margin-top: 0;
+            margin-bottom: 1.2rem;
+            color: var(--dark-gray);
+            border-bottom: 1px solid var(--medium-gray);
+            padding-bottom: 0.8rem;
+        }
+
+        /* 文件上传区域 */
+        .upload-box {
+            border: 2px dashed #ccc;
+            border-radius: 8px;
+            padding: 2rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background-color: #fafafa;
+        }
+
+        .upload-box:hover {
+            border-color: var(--primary-color);
+            background-color: #f0f8ff;
+        }
+
+        .upload-placeholder .upload-icon {
+            font-size: 3rem;
+            display: block;
+            margin-bottom: 1rem;
+            color: var(--primary-color);
+        }
+
+        .file-info .file-icon {
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+            color: var(--success-color);
+        }
+
+        .file-size {
+            color: #777;
+            font-size: 0.9rem;
+            margin: 0.3rem 0 0.8rem;
+        }
+
+        /* 表单元素 */
+        .input-group {
+            margin-bottom: 1rem;
+        }
+
+        .input-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+            color: #444;
+        }
+
+        input[type="text"],
+        select {
+            width: 100%;
+            padding: 0.8rem;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            font-size: 1rem;
+            box-sizing: border-box;
+            transition: border-color 0.3s;
+        }
+
+        input[type="text"]:focus,
+        select:focus {
+            border-color: var(--primary-color);
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.2);
+        }
+
+        /* 按钮样式 */
+        .btn {
+            padding: 0.7rem 1.2rem;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 500;
+            font-size: 1rem;
+            transition: all 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .btn.primary {
+            background-color: var(--primary-color);
+            color: white;
+        }
+
+        .btn.primary:hover {
+            background-color: var(--secondary-color);
+        }
+
+        .btn.secondary {
+            background-color: var(--medium-gray);
+            color: var(--dark-gray);
+        }
+
+        .btn.secondary:hover {
+            background-color: #d5dbdb;
+        }
+
+        .btn.danger {
+            background-color: var(--danger-color);
+            color: white;
+        }
+
+        .btn.danger:hover {
+            background-color: #c0392b;
+        }
+
+        .btn.large {
+            padding: 0.9rem 1.8rem;
+            font-size: 1.1rem;
+            flex: 1;
+        }
+
+        .btn.small {
+            padding: 0.4rem 0.8rem;
+            font-size: 0.85rem;
+        }
+
+        .btn-add {
+            width: 100%;
+            background-color: var(--success-color);
+            color: white;
+            margin-top: 1rem;
+        }
+
+        .btn-add:hover {
+            background-color: #27ae60;
+        }
+
+        /* 定义条目样式 */
+        .definition-list {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .definition-item {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+            background-color: #f9f9f9;
+            padding: 1rem;
+            border-radius: 8px;
+            border: 1px solid var(--medium-gray);
+        }
+
+        .definition-item .inputs {
+            flex-grow: 1;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
+        .definition-item .inputs > div {
+            flex: 1;
+            min-width: 150px;
+        }
+
+        .definition-item .delete-btn {
+            flex-shrink: 0;
+            background-color: var(--danger-color);
+        }
+         .definition-item .delete-btn:hover {
+            background-color: #c0392b;
+        }
+
+        /* 可视化面板 */
+        .visualization-panel h2 {
+            padding: 1rem 1.5rem;
+            margin: 0;
+            background-color: #f8f9fa;
+            border-bottom: 1px solid #eaeaea;
+        }
+        
+        .graph-container {
+            flex-grow: 1;
+            position: relative;
+        }
+        .cy-container {
+            width: 100%;
+            height: 100%;
+            position: relative;
+            z-index: 1;
+        }
+        .overlay {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background-color: rgba(255, 255, 255, 0.85);
+            z-index: 10;
+        }
+
+        .empty-graph {
+            text-align: center;
+            color: #777;
+        }
+
+        .empty-graph .graph-icon {
+            font-size: 4rem;
+            opacity: 0.5;
+            margin-bottom: 1rem;
+        }
+
+        .loading-indicator {
+           color: #777;
+        }
+
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 5px solid rgba(52, 152, 219, 0.2);
+            border-radius: 50%;
+            border-top-color: var(--primary-color);
+            animation: spin 1s ease-in-out infinite;
+            margin-bottom: 1rem;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+        
+        /* 新属性选择框 */
+        .property-selection { position: relative; }
+        .multi-select-trigger { display: flex; justify-content: space-between; align-items: center; padding: 0.8rem; border: 1px solid var(--border-color); border-radius: 6px; cursor: pointer; background-color: white; }
+        .multi-select-trigger:hover { border-color: var(--primary-color); }
+        .multi-select-dropdown { position: absolute; top: 100%; left: 0; right: 0; background-color: white; border: 1px solid var(--border-color); border-radius: 5px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); z-index: 1000; margin-top: 4px; }
+        .dropdown-header { padding: 8px; border-bottom: 1px solid #eee; }
+        .dropdown-header input { padding: 0.6rem; font-size: 0.9rem; }
+        .dropdown-actions { display: flex; justify-content: space-between; padding: 4px 8px; border-bottom: 1px solid #eee; }
+        .dropdown-options { max-height: 150px; overflow-y: auto; padding: 4px; }
+        .checkbox-item { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 4px; }
+        .checkbox-item:hover { background-color: #f0f8ff; }
+        .checkbox-item input[type="checkbox"] { width: auto; margin: 0; accent-color: var(--primary-color); cursor: pointer; }
+        .checkbox-item label { font-weight: 400; font-size: 0.9rem; color: var(--text-color); margin-bottom: 0; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; user-select: none; flex-grow: 1; }
+        .checkbox-item input[type="checkbox"]:disabled + label { color: #999; text-decoration: line-through; cursor: not-allowed; }
+        .arrow-icon { border: solid #555; border-width: 0 2px 2px 0; display: inline-block; padding: 3px; transform: rotate(45deg); transition: transform 0.2s; }
+        .arrow-icon.up { transform: rotate(-135deg); }
+        .help-text { font-size: 0.8rem; color: #777; margin-top: 5px; }

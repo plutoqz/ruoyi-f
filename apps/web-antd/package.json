@@ -46,15 +46,20 @@
     "cropperjs": "^1.6.2",
     "crypto-js": "^4.2.0",
     "dayjs": "catalog:",
+    "docx": "^9.5.0",
     "echarts": "^5.5.1",
+    "file-saver": "^2.0.5",
     "jsencrypt": "^3.3.2",
     "lodash-es": "^4.17.21",
     "papaparse": "^5.5.3",
     "pinia": "catalog:",
     "tinymce": "^7.3.0",
     "unplugin-vue-components": "^0.27.3",
+    "uuid": "^11.1.0",
     "vue": "catalog:",
-    "vue-router": "catalog:"
+    "vue-router": "catalog:",
+    "xlsx": "^0.18.5",
+    "xlsx-js-style": "^1.2.0"
   },
   "devDependencies": {
     "@types/crypto-js": "^4.2.2",

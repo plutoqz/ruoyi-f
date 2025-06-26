@@ -1,0 +1,16 @@
+{
+  "landParcels": [
+    {
+      "TBBH": "ZH001", "Area": 10.5, "Length": 300, "land_type": "水田", "village": "A村", "status": "种植粮食作物", "GDXS": "永久基本农田", "neighbors": ["ZH002"]
+    },
+    {
+      "TBBH": "ZH002", "Area": 8.2, "Length": 250, "land_type": "旱地", "village": "A村", "status": "种植非粮作物", "GDXS": "高标准农田", "neighbors": ["ZH001", "ZH003"]
+    },
+    {
+      "TBBH": "ZH003", "Area": 12.0, "Length": 350, "land_type": "水田", "village": "B村", "status": "未耕种", "GDXS": "一般耕地", "neighbors": ["ZH002"]
+    },
+    {
+      "TBBH": "ZH004", "Area": 15.3, "Length": 400, "land_type": "旱地", "village": "B村", "status": "种植粮食作物", "GDXS": "永久基本农田", "neighbors": []
+    }
+  ]
+}
