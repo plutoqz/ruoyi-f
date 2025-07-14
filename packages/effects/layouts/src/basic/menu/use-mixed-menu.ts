@@ -35,9 +35,13 @@ function useMixedMenu() {
    * 头部菜单
    */
   const headerMenus = computed(() => {
+    // if (!needSplit.value) {
+    //   return menus.value;
+    // }
     if (!needSplit.value) {
-      return menus.value;
-    }
+    // 在非混合模式下，让它也返回空，避免冲突
+    return isMixedNav.value ? menus.value : []; 
+  }
     return menus.value.map((item) => {
       return {
         ...item,
@@ -49,9 +53,16 @@ function useMixedMenu() {
   /**
    * 侧边菜单
    */
+  // const sidebarMenus = computed(() => {
+  //   return needSplit.value ? splitSideMenus.value : menus.value;
+  // });
   const sidebarMenus = computed(() => {
-    return needSplit.value ? splitSideMenus.value : menus.value;
-  });
+  if (!needSplit.value) {
+    // 在非混合模式下，让它也返回空，避免冲突
+    return isMixedNav.value ? menus.value : [];
+  }
+  return splitSideMenus.value;
+});
 
   /**
    * 侧边菜单激活路径

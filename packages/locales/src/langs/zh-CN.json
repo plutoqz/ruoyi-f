@@ -183,6 +183,8 @@
     "mixedMenuTip": "垂直水平菜单共存",
     "fullContent": "内容全屏",
     "fullContentTip": "不显示任何菜单，只显示内容主体",
+    "mixTopSubmenu": "混合菜单二",
+    "mixTopSubmenuTip": "混合菜单二，顶栏显示子菜单",
     "normal": "常规",
     "plain": "朴素",
     "rounded": "圆润",

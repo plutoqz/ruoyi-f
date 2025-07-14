@@ -3,7 +3,8 @@ type LayoutType =
   | 'header-nav'
   | 'mixed-nav'
   | 'sidebar-mixed-nav'
-  | 'sidebar-nav';
+  | 'sidebar-nav'
+  | 'mix-top-submenu';
 
 type ThemeModeType = 'auto' | 'dark' | 'light';
 

@@ -65,10 +65,10 @@ import {transform as OlTransform} from 'ol/proj';
 import Sidebar from './Sidebar.vue';
 import { wgs84togcj02, transformGeoJsonCoords } from './coordTransform.js';
 
-import amapLogo from 'E:/vscode/my-ruoyi-admin-webgis/ruoyi-admin/gaodeLogo.png';
-import tiandituLogo from 'E:/vscode/my-ruoyi-admin-webgis/ruoyi-admin/tianditu.png';
-import tencentLogo from 'E:/vscode/my-ruoyi-admin-webgis/ruoyi-admin/tencent.png';
-import osmLogo from 'E:/vscode/my-ruoyi-admin-webgis/ruoyi-admin/osm.png';
+import amapLogo from '/gaodeLogo.png';
+import tiandituLogo from '/tianditu.png';
+import tencentLogo from '/tencent.png';
+import osmLogo from '/osm.png';
 
 import LabelDrawer from './LabelDrawer.vue';
 

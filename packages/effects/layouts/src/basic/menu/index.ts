@@ -3,3 +3,4 @@ export { default as LayoutMenu } from './menu.vue';
 export { default as LayoutMixedMenu } from './mixed-menu.vue';
 export * from './use-extra-menu';
 export * from './use-mixed-menu';
+export * from './use-mix-top-submenu';

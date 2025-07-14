@@ -13,6 +13,7 @@ import {
   MixedNav,
   SidebarMixedNav,
   SidebarNav,
+  MixTopSubmenu,
 } from '../../icons';
 
 interface PresetItem {
@@ -33,6 +34,7 @@ const components: Record<LayoutType, Component> = {
   'mixed-nav': MixedNav,
   'sidebar-mixed-nav': SidebarMixedNav,
   'sidebar-nav': SidebarNav,
+  'mix-top-submenu': MixTopSubmenu,
 };
 
 const PRESET = computed((): PresetItem[] => [
@@ -55,6 +57,11 @@ const PRESET = computed((): PresetItem[] => [
     name: $t('preferences.mixedMenu'),
     tip: $t('preferences.mixedMenuTip'),
     type: 'mixed-nav',
+  },
+  {
+    name: $t('preferences.mixTopSubmenu'),
+    tip: $t('preferences.mixTopSubmenuTip'),
+    type: 'mix-top-submenu',
   },
   {
     name: $t('preferences.fullContent'),

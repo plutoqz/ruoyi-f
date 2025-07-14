@@ -79,7 +79,7 @@ function defineApplicationConfig(userConfigPromise?: DefineApplicationOptions) {
       },
       plugins,
       server: {
-        host: true,
+        host: '0.0.0.0',
         port,
         warmup: {
           // 预热文件

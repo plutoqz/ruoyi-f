@@ -205,7 +205,7 @@ const trendItems: WorkbenchTrendItem[] = [
       <template #title>
         早安, {{ userStore.userInfo?.realName }}, 开始您一天的工作吧！
       </template>
-      <template #description> 今日晴，20℃ - 32℃！ </template>
+      <!-- <template #description> 今日晴，20℃ - 32℃！ </template> -->
     </WorkbenchHeader>
 
     <div class="mt-5 flex flex-col lg:flex-row">
