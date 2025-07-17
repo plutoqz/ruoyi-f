@@ -166,16 +166,6 @@ import { ref, computed, nextTick ,watch, onMounted } from 'vue';
 import cytoscape from 'cytoscape';
 import fcose from 'cytoscape-fcose';
 cytoscape.use(fcose);
-// --- 模拟数据 ---
-// 模拟从SHP文件属性表读取的数据
-const mockShpData = [
-    { "properties": { "NAME": "北京市", "TYPE": "城市", "POP_MIL": 21.89, "PROVINCE": "北京" } },
-    { "properties": { "NAME": "上海市", "TYPE": "城市", "POP_MIL": 24.87, "PROVINCE": "上海" } },
-    { "properties": { "NAME": "天津市", "TYPE": "城市", "POP_MIL": 13.86, "PROVINCE": "天津" } },
-    { "properties": { "NAME": "河北省", "TYPE": "省份", "CAPITAL": "石家庄市", "AREA_KM2": 188800 } },
-    { "properties": { "NAME": "长江", "TYPE": "河流", "LENGTH_KM": 6300, "PROVINCE": "多省" } },
-    { "properties": { "NAME": "黄河", "TYPE": "河流", "LENGTH_KM": 5464, "PROVINCE": "多省" } },
-];
 
 // --- 响应式状态 ---
 const fileInput = ref(null); // 文件输入框的引用
@@ -530,9 +520,6 @@ const renderGraph = (data) => {
         layout: { name: 'fcose', animate: true, nodeRepulsion: 4500, idealEdgeLength: 100 }
     });
 };
-
-
-
 // 监视节点定义的唯一标识字段变化
 // 当唯一标识字段被选中时，自动将其从可勾选的属性中移除，避免重复
 watch(nodeDefinitions, (newDefs) => {
@@ -545,5 +532,5 @@ watch(nodeDefinitions, (newDefs) => {
 </script>
 
 <style scoped>
-@import './Structure.scss'
+@import './Structure.scss';
 </style>
