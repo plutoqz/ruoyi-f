@@ -30,7 +30,7 @@
           :node-definitions="nodeDefinitions"
           v-model="relationshipDefinitions"
         />
-       
+        
         <GraphControlPanel
           v-if="dataSources.length > 0"
           :is-generating="isGeneratingGraph"
@@ -50,7 +50,6 @@
 
 <script setup>
 import { ref, computed } from 'vue';
-// Assuming these components are in the same directory.
 import DataSourceManager from './DataSourceManager.vue';
 import NodeDefinitionPanel from './NodeDefinitionPanel.vue';
 import RelationshipDefinitionPanel from './RelationshipDefinitionPanel.vue';
@@ -106,9 +105,6 @@ const handleAddNewSource = (file) => {
 
 
 const handleImportConfig = (config) => {
-  // 简单地用导入的数据覆盖现有的定义
-  // 注意：这里没有进行深度验证，比如检查导入的字段是否在当前数据源中存在
-  // 在实际应用中，可能需要更复杂的合并或验证逻辑
   nodeDefinitions.value = config.nodeDefinitions || [];
   relationshipDefinitions.value = config.relationshipDefinitions || [];
   console.log('Configuration has been applied.');
@@ -137,6 +133,8 @@ const addDataSourceToList = (sourceData) => {
     if (nodeDefinitions.value.length === 0 && sourceData.features.length > 0) {
         nodeDefinitions.value.push({
             id: Date.now(), name: '', field: '', labelField: '',
+            // NEW: Initialize new properties
+            filterField: '', filterValue: '', group: '',
             properties: [], isPropertiesOpen: false, propertySearchTerm: ''
         });
     }
@@ -238,7 +236,7 @@ const processZipFileWithBackend = async (file, onComplete) => {
 
 
 // ===================================================================================
-// ==================== generateKG 函数 (最终修正版) =================================
+// ==================== generateKG 函数 (已适配过滤和分组) ==========================
 // ===================================================================================
 const generateKG = () => {
   isGeneratingGraph.value = true;
@@ -248,7 +246,7 @@ const generateKG = () => {
     try {
       const nodeMapById = new Map(); 
 
-      // --- 步骤 1: 节点生成与属性合并 ---
+      // --- 步骤 1: 节点生成 (集成过滤条件) ---
       dataSources.value.forEach(source => {
         source.features.forEach((feature) => {
           nodeDefinitions.value.forEach(def => {
@@ -256,6 +254,13 @@ const generateKG = () => {
             
             const item = feature.attributes;
             if (!item.hasOwnProperty(def.field)) return;
+
+            // *** NEW: 应用行过滤条件 ***
+            if (def.filterField && def.filterValue) {
+              if (String(item[def.filterField]).trim() !== String(def.filterValue).trim()) {
+                return; // 如果不满足过滤条件，则跳过此行对此节点定义的处理
+              }
+            }
             
             const nodeValue = item[def.field];
             if (nodeValue !== null && nodeValue !== undefined && nodeValue !== '') {
@@ -279,6 +284,8 @@ const generateKG = () => {
                   id: nodeId, 
                   label: String(displayLabel), 
                   type: def.name,
+                  // *** NEW: 添加分组信息 ***
+                  group: def.group || null,
                   properties: nodeProperties 
                 };
                 nodeMapById.set(nodeId, newNode);
@@ -305,21 +312,19 @@ const generateKG = () => {
       });
 
       const allNodes = Array.from(nodeMapById.values());
-      const allEdges = [];
+      let allEdges = [];
 
-      // --- 步骤 2: 关系生成 ---
+      // --- 步骤 2: 关系生成 (适配分组) ---
 
-      // --- 步骤 2a: 【核心修正】处理空间关系 ---
-      // 1. 构建一个更精确的查找地图：`featureId -> (nodeType -> node)`
-      //    这允许一个 featureId 映射到它所生成的多个不同类型的节点。
+      // --- 步骤 2a: 处理空间关系 ---
       const nodesByFeatureId = new Map();
       allNodes.forEach(node => {
         if (node.properties.featureIds && Array.isArray(node.properties.featureIds)) {
           node.properties.featureIds.forEach(fid => {
             if (!nodesByFeatureId.has(fid)) {
-              nodesByFeatureId.set(fid, new Map());
+              nodesByFeatureId.set(fid, []);
             }
-            nodesByFeatureId.get(fid).set(node.type, node);
+            nodesByFeatureId.get(fid).push(node);
           });
         }
       });
@@ -331,40 +336,37 @@ const generateKG = () => {
         dataSources.value.forEach(source => {
           if (!source.spatialRelationships || source.spatialRelationships.length === 0) return;
           source.spatialRelationships.forEach(rel => {
-            const sourceNodeOptions = nodesByFeatureId.get(rel.sourceFeatureId);
-            const targetNodeOptions = nodesByFeatureId.get(rel.targetFeatureId);
+            const sourceNodesInFeature = nodesByFeatureId.get(rel.sourceFeatureId) || [];
+            const targetNodesInFeature = nodesByFeatureId.get(rel.targetFeatureId) || [];
 
-            if (sourceNodeOptions && targetNodeOptions) {
-              // 2. 遍历所有空间关系规则，为每条规则精确查找节点
+            if (sourceNodesInFeature.length > 0 && targetNodesInFeature.length > 0) {
               for (const rule of spatialRules) {
-                // 3. 根据规则中定义的 `source` 和 `target` 类型，精确获取节点
-                const sourceNode = sourceNodeOptions.get(rule.source);
-                const targetNode = targetNodeOptions.get(rule.target);
-
-                // 检查正向匹配
-                if (sourceNode && targetNode && sourceNode.id !== targetNode.id) {
-                  const edgeLabel = spatialRelationMap[rel.type.toUpperCase()] || rel.type;
-                  allEdges.push({
-                    id: `e_spatial_${sourceNode.id}_${targetNode.id}_${rel.type}`,
-                    source: sourceNode.id,
-                    target: targetNode.id,
-                    label: edgeLabel
-                  });
-                  break; // 找到匹配规则，处理下一条空间关系
-                }
+                // *** NEW: 查找匹配规则的节点 (包括检查分组) ***
+                const findNode = (nodes, typeOrGroup) => nodes.find(n => n.type === typeOrGroup || n.group === typeOrGroup);
                 
-                // 检查反向匹配 (例如，规则是 A-B，但关系数据是 B-A)
-                const sourceNodeReversed = sourceNodeOptions.get(rule.target);
-                const targetNodeReversed = targetNodeOptions.get(rule.source);
-                if (sourceNodeReversed && targetNodeReversed && sourceNodeReversed.id !== targetNodeReversed.id) {
-                  const edgeLabel = spatialRelationMap[rel.type.toUpperCase()] || rel.type;
-                  allEdges.push({
-                    id: `e_spatial_${sourceNodeReversed.id}_${targetNodeReversed.id}_${rel.type}`,
-                    source: sourceNodeReversed.id,
-                    target: targetNodeReversed.id,
-                    label: edgeLabel
-                  });
-                  break; // 找到匹配规则，处理下一条空间关系
+                // 正向匹配
+                let sourceNode = findNode(sourceNodesInFeature, rule.source);
+                let targetNode = findNode(targetNodesInFeature, rule.target);
+
+                if (sourceNode && targetNode && sourceNode.id !== targetNode.id) {
+                    const edgeLabel = spatialRelationMap[rel.type.toUpperCase()] || rel.type;
+                    allEdges.push({
+                      id: `e_spatial_${sourceNode.id}_${targetNode.id}_${rel.type}`,
+                      source: sourceNode.id, target: targetNode.id, label: edgeLabel
+                    });
+                    continue; // 处理下一条空间关系
+                }
+
+                // 反向匹配
+                sourceNode = findNode(sourceNodesInFeature, rule.target);
+                targetNode = findNode(targetNodesInFeature, rule.source);
+
+                if (sourceNode && targetNode && sourceNode.id !== targetNode.id) {
+                    const edgeLabel = spatialRelationMap[rel.type.toUpperCase()] || rel.type;
+                    allEdges.push({
+                      id: `e_spatial_${sourceNode.id}_${targetNode.id}_${rel.type}`,
+                      source: sourceNode.id, target: targetNode.id, label: edgeLabel
+                    });
                 }
               }
             }
@@ -372,11 +374,13 @@ const generateKG = () => {
         });
       }
 
-      // --- 步骤 2b: 处理字段连接关系 (此部分逻辑不受影响) ---
+      // --- 步骤 2b: 处理字段连接关系 ---
       const fieldRules = relationshipDefinitions.value.filter(def => def.method === 'field' && def.source && def.target && def.sourceForeignKey && def.targetForeignKey);
       fieldRules.forEach(rule => {
-        const sourceNodes = allNodes.filter(n => n.type === rule.source);
-        const targetNodes = allNodes.filter(n => n.type === rule.target);
+        // *** NEW: 根据类型或分组来过滤节点 ***
+        const sourceNodes = allNodes.filter(n => n.type === rule.source || n.group === rule.source);
+        const targetNodes = allNodes.filter(n => n.type === rule.target || n.group === rule.target);
+        
         const sourceNodeMapByFK = new Map();
         sourceNodes.forEach(sNode => {
             const key = sNode.properties[rule.sourceForeignKey];
@@ -386,6 +390,7 @@ const generateKG = () => {
             }
         });
         if (sourceNodeMapByFK.size === 0) return;
+
         targetNodes.forEach(tNode => {
             const key = tNode.properties[rule.targetForeignKey];
             if (sourceNodeMapByFK.has(key)) {
@@ -405,9 +410,11 @@ const generateKG = () => {
 
       // --- 步骤 3: 更新图谱数据 ---
       const uniqueEdges = Array.from(new Map(allEdges.map(edge => {
-          const sourceTarget = [edge.source, edge.target].sort();
-          return [[sourceTarget[0], sourceTarget[1], edge.label].join('-'), edge];
+          // 为防止双向关系重复，对source和target排序
+          const key = [edge.source, edge.target].sort().join('-') + `-${edge.label}`;
+          return [key, edge];
       })).values());
+
       console.log("即将渲染的节点数据:", allNodes);
       graphData.value = { nodes: allNodes, edges: uniqueEdges };
       console.log("图谱生成完成. 节点数:", allNodes.length, "边数:", uniqueEdges.length);
