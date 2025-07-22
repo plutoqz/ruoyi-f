@@ -3,11 +3,19 @@
     <div class="main-content">
       <!-- Left Control Panel -->
       <div class="control-panel">
+
         <DataSourceManager
           :data-sources="dataSources"
           :is-processing="isProcessingFile"
           @add-source="handleAddNewSource"
           @remove-source="handleRemoveSource"
+        />
+        
+        <ConfigurationManager
+          v-if="dataSources.length > 0"
+          :node-definitions="nodeDefinitions"
+          :relationship-definitions="relationshipDefinitions"
+          @import-config="handleImportConfig"
         />
 
         <NodeDefinitionPanel
@@ -48,6 +56,7 @@ import NodeDefinitionPanel from './NodeDefinitionPanel.vue';
 import RelationshipDefinitionPanel from './RelationshipDefinitionPanel.vue';
 import GraphControlPanel from './GraphControlPanel.vue';
 import GraphVisualizer from './GraphVisualizer.vue';
+import ConfigurationManager from './ConfigurationManager.vue';
 
 // --- State ---
 const dataSources = ref([]);
@@ -94,6 +103,17 @@ const handleAddNewSource = (file) => {
     onComplete(false);
   }
 };
+
+
+const handleImportConfig = (config) => {
+  // 简单地用导入的数据覆盖现有的定义
+  // 注意：这里没有进行深度验证，比如检查导入的字段是否在当前数据源中存在
+  // 在实际应用中，可能需要更复杂的合并或验证逻辑
+  nodeDefinitions.value = config.nodeDefinitions || [];
+  relationshipDefinitions.value = config.relationshipDefinitions || [];
+  console.log('Configuration has been applied.');
+};
+
 
 const handleRemoveSource = (indexToRemove) => {
   dataSources.value = dataSources.value.filter((_, index) => index !== indexToRemove);
@@ -388,7 +408,7 @@ const generateKG = () => {
           const sourceTarget = [edge.source, edge.target].sort();
           return [[sourceTarget[0], sourceTarget[1], edge.label].join('-'), edge];
       })).values());
-      
+      console.log("即将渲染的节点数据:", allNodes);
       graphData.value = { nodes: allNodes, edges: uniqueEdges };
       console.log("图谱生成完成. 节点数:", allNodes.length, "边数:", uniqueEdges.length);
 
