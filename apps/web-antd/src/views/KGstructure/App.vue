@@ -69,12 +69,15 @@ const isProcessingFile = ref(false);
 const allAttributeFieldsWithSources = computed(() => {
   const fieldMap = new Map();
   dataSources.value.forEach(source => {
-    source.attributeFields.forEach(field => {
-      if (!fieldMap.has(field)) {
-        fieldMap.set(field, new Set());
-      }
-      fieldMap.get(field).add(source.name);
-    });
+    // 确保 source.attributeFields 存在且是数组
+    if (Array.isArray(source.attributeFields)) {
+      source.attributeFields.forEach(field => {
+        if (!fieldMap.has(field)) {
+          fieldMap.set(field, new Set());
+        }
+        fieldMap.get(field).add(source.name);
+      });
+    }
   });
   
   const result = [];
@@ -86,20 +89,87 @@ const allAttributeFieldsWithSources = computed(() => {
 
 
 // --- Methods ---
-const handleAddNewSource = (file) => {
-  isProcessingFile.value = true;
-  const onComplete = (success) => {
-    isProcessingFile.value = false;
-  };
 
+const handleAddNewSource = async (file) => {
+  isProcessingFile.value = true;
+  const formData = new FormData();
+  formData.append('file', file);
+
+  // 统一上传入口，暂时只处理zip，未来后端可扩展
   const fileName = file.name.toLowerCase();
-  if (fileName.endsWith('.zip')) {
-    processZipFileWithBackend(file, onComplete);
-  } else if (fileName.endsWith('.json') || fileName.endsWith('.geojson')) {
-    processJsonFileInFrontend(file, onComplete);
-  } else {
-    alert("不支持的文件类型。请上传 .zip, .json, 或 .geojson 文件。");
-    onComplete(false);
+  if (!fileName.endsWith('.zip')) {
+      // 在前端进行简单过滤，或者让后端来返回错误信息
+      alert("目前只支持上传.zip格式的shp文件压缩包。");
+      isProcessingFile.value = false;
+      return;
+  }
+  
+  try {
+    // 1. 上传文件，获取 taskId
+    // 确保这里的路径与你的前端代理配置一致
+    const uploadResponse = await fetch('/api/datasource/upload', {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (uploadResponse.status !== 202) { // 期望 202 Accepted
+      const errorText = await uploadResponse.text();
+      throw new Error(`文件上传失败: ${errorText}`);
+    }
+
+    const { taskId, fileName: originalFileName } = await uploadResponse.json();
+    console.log(`文件上传成功，任务ID: ${taskId}`);
+
+    // 2. 开始轮询任务状态
+    const poll = setInterval(async () => {
+      try {
+        const statusResponse = await fetch(`/api/datasource/status/${taskId}?fileName=${encodeURIComponent(originalFileName)}`);
+        if (!statusResponse.ok) {
+           console.error(`查询任务 ${taskId} 状态失败`);
+           return;
+        }
+
+        const result = await statusResponse.json();
+        console.log(`任务 ${taskId} 状态: ${result.status}`);
+
+        if (result.status === 'COMPLETED') {
+          clearInterval(poll);
+          isProcessingFile.value = false;
+          
+          const sourceMetadata = result.data;
+          
+          dataSources.value.push({
+            id: Date.now(), // 前端临时ID
+            dataSourceId: sourceMetadata.dataSourceId, // 后端的唯一ID
+            name: sourceMetadata.name,
+            attributeFields: sourceMetadata.attributeFields,
+            recordCount: sourceMetadata.recordCount,
+          });
+          
+          if (nodeDefinitions.value.length === 0 && dataSources.value.length > 0) {
+            nodeDefinitions.value.push({
+                id: Date.now(), name: '', field: '', labelField: '',
+                filterField: '', filterValue: '', group: '',
+                properties: [], isPropertiesOpen: false, propertySearchTerm: ''
+            });
+          }
+
+        } else if (result.status === 'FAILED') {
+          clearInterval(poll);
+          isProcessingFile.value = false;
+          alert(`文件处理失败: ${result.error || '未知错误'}`);
+        }
+        console.log(dataSources.value);
+      } catch (pollError) {
+        clearInterval(poll);
+        isProcessingFile.value = false;
+        alert(`查询处理状态时发生错误: ${pollError.message}`);
+      }
+    }, 3000);
+
+  } catch (error) {
+    isProcessingFile.value = false;
+    alert(`添加数据源失败: ${error.message}`);
   }
 };
 
@@ -112,32 +182,10 @@ const handleImportConfig = (config) => {
 
 
 const handleRemoveSource = (indexToRemove) => {
-  dataSources.value = dataSources.value.filter((_, index) => index !== indexToRemove);
+  dataSources.value.splice(indexToRemove, 1);
   if (dataSources.value.length === 0) {
       resetDefinitions();
   }
-};
-
-const addDataSourceToList = (sourceData) => {
-    const firstRecordAttributes = sourceData.features[0]?.attributes || {};
-    
-    dataSources.value.push({
-        id: Date.now(),
-        name: sourceData.name,
-        features: sourceData.features,
-        spatialRelationships: sourceData.spatialRelationships || [],
-        attributeFields: Object.keys(firstRecordAttributes),
-        recordCount: sourceData.features.length
-    });
-
-    if (nodeDefinitions.value.length === 0 && sourceData.features.length > 0) {
-        nodeDefinitions.value.push({
-            id: Date.now(), name: '', field: '', labelField: '',
-            // NEW: Initialize new properties
-            filterField: '', filterValue: '', group: '',
-            properties: [], isPropertiesOpen: false, propertySearchTerm: ''
-        });
-    }
 };
 
 const resetDefinitions = () => {
@@ -151,281 +199,78 @@ const resetAll = () => {
   resetDefinitions();
 };
 
-const processJsonFileInFrontend = (file, onComplete) => {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-        try {
-            const parsedData = JSON.parse(e.target.result);
-            let featuresRaw = [];
-            if (Array.isArray(parsedData)) featuresRaw = parsedData;
-            else if (parsedData.type === 'FeatureCollection') featuresRaw = parsedData.features.map(f => f.properties);
-            
-            const features = featuresRaw.map((attrs, index) => ({
-                featureId: `${file.name}_${index}`,
-                attributes: attrs
-            }));
-
-            addDataSourceToList({
-                name: file.name,
-                features: features,
-                spatialRelationships: []
-            });
-            onComplete(true);
-        } catch (error) {
-            alert(`解析JSON失败: ${error.message}`);
-            onComplete(false);
-        }
-    };
-    reader.onerror = () => { alert('读取文件失败'); onComplete(false); };
-    reader.readAsText(file);
-};
-
-const processZipFileWithBackend = async (file, onComplete) => {
-    const formData = new FormData();
-    formData.append('file', file);
-    let poll;
-    try {
-        const uploadRes = await fetch(`/api/files/upload`, { method: 'POST', body: formData });
-        if (!uploadRes.ok) throw new Error(`上传失败: ${uploadRes.statusText}`);
-        const { taskId } = await uploadRes.json();
-
-        poll = setInterval(async () => {
-            const statusRes = await fetch(`/api/files/status/${taskId}`);
-            if (!statusRes.ok) throw new Error(`获取状态失败: ${statusRes.statusText}`);
-            const { status, error } = await statusRes.json();
-
-            if (status === 'COMPLETED') {
-                clearInterval(poll);
-                const dataRes = await fetch(`/api/files/data/${taskId}`);
-                if (!dataRes.ok) throw new Error(`获取数据失败: ${dataRes.statusText}`);
-                const backendResult = await dataRes.json();
-                
-                if (!backendResult || !Array.isArray(backendResult.features)) {
-                  throw new Error("从后端接收到的数据格式无效。");
-                }
-                
-                const featuresWithGlobalIds = backendResult.features.map(feature => ({
-                    ...feature,
-                    featureId: `${file.name}_${feature.featureId}` 
-                }));
-
-                const spatialRelsWithGlobalIds = (backendResult.spatialRelationships || []).map(rel => ({
-                    ...rel,
-                    sourceFeatureId: `${file.name}_${rel.sourceFeatureId}`,
-                    targetFeatureId: `${file.name}_${rel.targetFeatureId}`
-                }));
-
-                addDataSourceToList({
-                  name: file.name,
-                  features: featuresWithGlobalIds,
-                  spatialRelationships: spatialRelsWithGlobalIds
-                });
-                onComplete(true);
-
-            } else if (status === 'FAILED') {
-                clearInterval(poll);
-                throw new Error(error || '后端解析失败');
-            }
-        }, 2000);
-    } catch (error) {
-        if(poll) clearInterval(poll);
-        alert(`处理ZIP文件失败: ${error.message}`);
-        onComplete(false);
-    }
-};
-
 
 // ===================================================================================
-// ==================== generateKG 函数 (已适配过滤和分组) ==========================
+// ==================== NEW: generateKG 函数 (调用后端 API) ==========================
 // ===================================================================================
-const generateKG = () => {
+const generateKG = async () => {
+  if (nodeDefinitions.value.every(def => !def.name || !def.field)) {
+    alert("请至少定义一个有效的节点（类型和主键字段不能为空）。");
+    return;
+  }
+
   isGeneratingGraph.value = true;
   graphData.value = { nodes: [], edges: [] };
 
-  setTimeout(() => {
-    try {
-      const nodeMapById = new Map(); 
-
-      // --- 步骤 1: 节点生成 (集成过滤条件) ---
-      dataSources.value.forEach(source => {
-        source.features.forEach((feature) => {
-          nodeDefinitions.value.forEach(def => {
-            if (!def.name || !def.field) return;
-            
-            const item = feature.attributes;
-            if (!item.hasOwnProperty(def.field)) return;
-
-            // *** NEW: 应用行过滤条件 ***
-            if (def.filterField && def.filterValue) {
-              if (String(item[def.filterField]).trim() !== String(def.filterValue).trim()) {
-                return; // 如果不满足过滤条件，则跳过此行对此节点定义的处理
-              }
-            }
-            
-            const nodeValue = item[def.field];
-            if (nodeValue !== null && nodeValue !== undefined && nodeValue !== '') {
-              const nodeId = `${def.name}_${nodeValue}`; 
-
-              if (!nodeMapById.has(nodeId)) {
-                const displayLabel = def.labelField && item[def.labelField] ? item[def.labelField] : nodeValue;
-                const nodeProperties = {};
-                
-                def.properties.forEach(prop => { 
-                  if(item.hasOwnProperty(prop)) nodeProperties[prop] = item[prop]; 
-                });
-                
-                nodeProperties.featureIds = [feature.featureId];
-
-                if (!nodeProperties.hasOwnProperty(def.field)) {
-                    nodeProperties[def.field] = item[def.field];
-                }
-                
-                const newNode = { 
-                  id: nodeId, 
-                  label: String(displayLabel), 
-                  type: def.name,
-                  // *** NEW: 添加分组信息 ***
-                  group: def.group || null,
-                  properties: nodeProperties 
-                };
-                nodeMapById.set(nodeId, newNode);
-              } else {
-                const existingNode = nodeMapById.get(nodeId);
-                existingNode.properties.featureIds.push(feature.featureId);
-                
-                def.properties.forEach(prop => {
-                  if (!existingNode.properties.hasOwnProperty(prop) && item.hasOwnProperty(prop)) {
-                    existingNode.properties[prop] = item[prop];
-                  }
-                });
-
-                if (def.labelField && item[def.labelField]) {
-                    const oldLabelIsDefault = String(existingNode.label) === String(existingNode.properties[def.field]);
-                    if (oldLabelIsDefault) {
-                        existingNode.label = String(item[def.labelField]);
-                    }
-                }
-              }
-            }
-          });
-        });
-      });
-
-      const allNodes = Array.from(nodeMapById.values());
-      let allEdges = [];
-
-      // --- 步骤 2: 关系生成 (适配分组) ---
-
-      // --- 步骤 2a: 处理空间关系 ---
-      const nodesByFeatureId = new Map();
-      allNodes.forEach(node => {
-        if (node.properties.featureIds && Array.isArray(node.properties.featureIds)) {
-          node.properties.featureIds.forEach(fid => {
-            if (!nodesByFeatureId.has(fid)) {
-              nodesByFeatureId.set(fid, []);
-            }
-            nodesByFeatureId.get(fid).push(node);
-          });
-        }
-      });
-      
-      const spatialRules = relationshipDefinitions.value.filter(def => def.method === 'spatial' && def.source && def.target);
-      const spatialRelationMap = { 'TOUCHES': '邻接', 'OVERLAPS': '重叠', 'CONTAINS': '包含', 'WITHIN': '在...之内', 'INTERSECTS': '相交', 'EQUALS': '空间相等', 'DISJOINT': '相离', 'CROSSES': '穿越' };
-
-      if (spatialRules.length > 0) {
-        dataSources.value.forEach(source => {
-          if (!source.spatialRelationships || source.spatialRelationships.length === 0) return;
-          source.spatialRelationships.forEach(rel => {
-            const sourceNodesInFeature = nodesByFeatureId.get(rel.sourceFeatureId) || [];
-            const targetNodesInFeature = nodesByFeatureId.get(rel.targetFeatureId) || [];
-
-            if (sourceNodesInFeature.length > 0 && targetNodesInFeature.length > 0) {
-              for (const rule of spatialRules) {
-                // *** NEW: 查找匹配规则的节点 (包括检查分组) ***
-                const findNode = (nodes, typeOrGroup) => nodes.find(n => n.type === typeOrGroup || n.group === typeOrGroup);
-                
-                // 正向匹配
-                let sourceNode = findNode(sourceNodesInFeature, rule.source);
-                let targetNode = findNode(targetNodesInFeature, rule.target);
-
-                if (sourceNode && targetNode && sourceNode.id !== targetNode.id) {
-                    const edgeLabel = spatialRelationMap[rel.type.toUpperCase()] || rel.type;
-                    allEdges.push({
-                      id: `e_spatial_${sourceNode.id}_${targetNode.id}_${rel.type}`,
-                      source: sourceNode.id, target: targetNode.id, label: edgeLabel
-                    });
-                    continue; // 处理下一条空间关系
-                }
-
-                // 反向匹配
-                sourceNode = findNode(sourceNodesInFeature, rule.target);
-                targetNode = findNode(targetNodesInFeature, rule.source);
-
-                if (sourceNode && targetNode && sourceNode.id !== targetNode.id) {
-                    const edgeLabel = spatialRelationMap[rel.type.toUpperCase()] || rel.type;
-                    allEdges.push({
-                      id: `e_spatial_${sourceNode.id}_${targetNode.id}_${rel.type}`,
-                      source: sourceNode.id, target: targetNode.id, label: edgeLabel
-                    });
-                }
-              }
-            }
-          });
-        });
-      }
-
-      // --- 步骤 2b: 处理字段连接关系 ---
-      const fieldRules = relationshipDefinitions.value.filter(def => def.method === 'field' && def.source && def.target && def.sourceForeignKey && def.targetForeignKey);
-      fieldRules.forEach(rule => {
-        // *** NEW: 根据类型或分组来过滤节点 ***
-        const sourceNodes = allNodes.filter(n => n.type === rule.source || n.group === rule.source);
-        const targetNodes = allNodes.filter(n => n.type === rule.target || n.group === rule.target);
-        
-        const sourceNodeMapByFK = new Map();
-        sourceNodes.forEach(sNode => {
-            const key = sNode.properties[rule.sourceForeignKey];
-            if (key !== undefined && key !== null) {
-                if (!sourceNodeMapByFK.has(key)) sourceNodeMapByFK.set(key, []);
-                sourceNodeMapByFK.get(key).push(sNode);
-            }
-        });
-        if (sourceNodeMapByFK.size === 0) return;
-
-        targetNodes.forEach(tNode => {
-            const key = tNode.properties[rule.targetForeignKey];
-            if (sourceNodeMapByFK.has(key)) {
-                sourceNodeMapByFK.get(key).forEach(sNode => {
-                    if (sNode.id !== tNode.id) {
-                         allEdges.push({ 
-                             id: `e_field_${sNode.id}_${tNode.id}_${rule.type}`, 
-                             source: sNode.id, 
-                             target: tNode.id, 
-                             label: rule.type 
-                         });
-                    }
-                });
-            }
-        });
-      });
-
-      // --- 步骤 3: 更新图谱数据 ---
-      const uniqueEdges = Array.from(new Map(allEdges.map(edge => {
-          // 为防止双向关系重复，对source和target排序
-          const key = [edge.source, edge.target].sort().join('-') + `-${edge.label}`;
-          return [key, edge];
-      })).values());
-
-      console.log("即将渲染的节点数据:", allNodes);
-      graphData.value = { nodes: allNodes, edges: uniqueEdges };
-      console.log("图谱生成完成. 节点数:", allNodes.length, "边数:", uniqueEdges.length);
-
-    } catch (error) {
-      console.error("生成图谱失败:", error);
-      alert(`生成图谱时出错: ${error.message}`);
-    } finally {
+  try {
+    // 1. 收集数据源ID
+    const dataSourceIds = dataSources.value.map(ds => ds.dataSourceId);
+    if (dataSourceIds.length === 0) {
+      alert("请先添加数据源。");
       isGeneratingGraph.value = false;
+      return;
     }
-  }, 100);
+
+    // 2. 构建请求体 (图谱构建蓝图)
+    const generationRequest = {
+      dataSourceIds: dataSourceIds,
+      nodeDefinitions: nodeDefinitions.value.map(def => ({
+          name: def.name,
+          field: def.field,
+          labelField: def.labelField,
+          filterField: def.filterField,
+          filterValue: def.filterValue,
+          group: def.group,
+          properties: def.properties,
+      })),
+      relationshipDefinitions: relationshipDefinitions.value.map(def => ({
+          method: def.method,
+          source: def.source,
+          target: def.target,
+          type: def.type,
+          sourceForeignKey: def.sourceForeignKey,
+          targetForeignKey: def.targetForeignKey,
+      })),
+    };
+
+    // 3. 调用后端API
+    // 确保这里的路径与你的前端代理配置一致
+    const response = await fetch('/api/kg/generate', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(generationRequest),
+    });
+
+    if (!response.ok) {
+      const errorBody = await response.text();
+      throw new Error(`生成图谱失败: ${response.statusText} - ${errorBody}`);
+    }
+
+    // 4. 获取并设置图谱数据
+    const resultGraphData = await response.json();
+    
+    console.log("从后端接收到的图谱数据:", resultGraphData);
+    graphData.value = resultGraphData;
+    console.log("图谱渲染完成. 节点数:", resultGraphData.nodes.length, "边数:", resultGraphData.edges.length);
+
+  } catch (error) {
+    console.error("生成图谱失败:", error);
+    alert(`生成图谱时出错: ${error.message}`);
+  } finally {
+    isGeneratingGraph.value = false;
+  }
 };
 
 </script>
