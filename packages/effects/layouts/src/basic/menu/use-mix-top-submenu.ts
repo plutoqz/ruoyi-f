@@ -37,9 +37,12 @@ export function useMixTopSubmenu() {
     activePrimaryPath.value = rootMenu?.path ?? '';
     topSubMenus.value = rootMenu?.children ?? [];
 
-    if (topSubMenus.value.length > 0) {
-      navigation(topSubMenus.value[0].path);
-    } else {
+    // if (topSubMenus.value.length > 0) {
+    //   navigation(topSubMenus.value[0].path);
+    // } else {
+    //   navigation(key);
+    // }
+    if (topSubMenus.value.length === 0) {
       navigation(key);
     }
   };

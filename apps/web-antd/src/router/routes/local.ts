@@ -125,7 +125,8 @@ export const localMenuList: RouteRecordStringComponent[] = [
       {
         name: 'Workspace',
         path: '/workspace',
-        component: '/dashboard/workspace/index',
+        // component: '/dashboard/newworkspace/index',
+        component:'/maps/index',
         meta: {
           title: 'page.dashboard.workspace',
         },

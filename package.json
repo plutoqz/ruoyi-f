@@ -124,11 +124,13 @@
     "@amap/amap-jsapi-loader": "^1.0.1",
     "@antv/g6": "^5.0.49",
     "@google/genai": "^0.13.0",
+    "@types/marked": "^6.0.0",
     "@vueuse/integrations": "^13.0.0",
     "axios": "^1.8.4",
     "coordtransform": "^2.1.2",
     "cytoscape": "^3.31.2",
     "cytoscape-fcose": "^2.2.0",
+    "marked": "^16.1.1",
     "neovis.js": "^2.1.0",
     "ol": "^10.4.0",
     "vis-network": "^9.1.9"

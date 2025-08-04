@@ -127,7 +127,7 @@ import { ref ,onMounted ,nextTick, onUnmounted } from 'vue'
 import cytoscape from 'cytoscape'
 import fcose from 'cytoscape-fcose'
 import axios from 'axios'
-import GaodeMap from 'E:/vscode/my-ruoyi-admin-webgis/ruoyi-admin/apps/web-antd/src/views/maps/index.vue'
+import GaodeMap from '../maps/index.vue';
 cytoscape.use(fcose);
 
 const cyContainer = ref(null)

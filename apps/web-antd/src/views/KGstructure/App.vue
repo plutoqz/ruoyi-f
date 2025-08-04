@@ -244,7 +244,6 @@ const generateKG = async () => {
     };
 
     // 3. 调用后端API
-    // 确保这里的路径与你的前端代理配置一致
     const response = await fetch('/api/kg/generate', {
       method: 'POST',
       headers: {
