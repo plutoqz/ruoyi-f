@@ -1,6 +1,6 @@
 <template>
   <div class="rag-page-container p-4">
-    <a-card title="智能问答助手">
+    <a-card title="智能问答助手" :body-style="{ padding: 0 }" class="full-height-card">
       <div class="chat-container">
         <!-- 对话展示区域 -->
         <div class="message-list" ref="messageListRef">
@@ -9,12 +9,11 @@
               {{ message.role === 'user' ? '我' : '答' }}
             </div>
             <div class="message-content">
-              <!-- 使用 v-html 来渲染 Markdown，需要注意 XSS 风险，但对于内部系统通常可接受 -->
-              <!-- 如果答案是纯文本，直接用 {{ message.content }} 即可 -->
               <div v-if="message.isTyping">
                 <a-spin />
               </div>
-              <div v-else v-html="renderMarkdown(message.content)"></div>
+              <!-- 使用 v-html 和 DOMPurify 进行安全渲染 -->
+              <div v-else v-html="secureRenderMarkdown(message.content)"></div>
             </div>
           </div>
         </div>
@@ -28,9 +27,9 @@
             @keypress.enter.prevent="sendMessage"
             :disabled="isLoading"
           />
-          <a-button type="primary" @click="sendMessage" :loading="isLoading" class="ml-2">
-            发送
-          </a-button>
+          <!-- 根据 isLoading 状态显示不同按钮 -->
+          <a-button v-if="!isLoading" type="primary" @click="sendMessage" class="ml-2">发送</a-button>
+          <a-button v-else danger @click="stopGeneration" class="ml-2">停止</a-button>
         </div>
       </div>
     </a-card>
@@ -38,90 +37,140 @@
 </template>
 
 <script lang="ts" setup>
-import { ref, nextTick } from 'vue';
+import { ref, nextTick, shallowRef } from 'vue';
 import { Card, Input, Button, Spin, message as AntMessage } from 'ant-design-vue';
-import { queryRAG } from './rag'; // 引入我们刚刚创建的 API 函数
-import { marked } from 'marked'; // 引入 marked 库用于渲染 Markdown
+import { marked } from 'marked';
+import DOMPurify from 'dompurify';
+import { useAccessStore } from '@vben/stores'; // 引入用于获取 Token 的 store
 
-// 如果你的项目没有安装 marked，请运行：pnpm add marked @types/marked -w
-// 或者 yarn add marked @types/marked / npm install marked @types/marked
+// 确保你的项目中存在 @vben/stores 并导出了 useAccessStore
+// 如果你的 store 不叫这个名字，请替换成你项目中实际的 store
+
+// 强制同步渲染
+marked.setOptions({ async: false });
 
 const ATextarea = Input.TextArea;
 
-// 对话消息列表
 interface Message {
   role: 'user' | 'assistant';
   content: string;
   isTyping?: boolean;
 }
 const messages = ref<Message[]>([
-  { role: 'assistant', content: '你好！我是对话智能体，有什么可以帮助你的吗？' }
+  { role: 'assistant', content: '你好！有什么可以帮助你的吗？' }
 ]);
 
 const userInput = ref('');
 const isLoading = ref(false);
 const messageListRef = ref<HTMLElement | null>(null);
+const eventSource = shallowRef<EventSource | null>(null);
+const accessStore = useAccessStore(); // 获取 store 实例
 
-// 滚动到底部
 const scrollToBottom = () => {
   nextTick(() => {
     const el = messageListRef.value;
     if (el) {
-      el.scrollTop = el.scrollHeight;
+      /* 关键：用 scrollIntoView 把最后一条消息顶进可视区域 */
+      const last = el.lastElementChild;
+      last?.scrollIntoView({ behavior: 'smooth', block: 'end' });
     }
   });
 };
 
-// 发送消息
-const sendMessage = async () => {
+const stopGeneration = () => {
+  if (eventSource.value) {
+    eventSource.value.close();
+    eventSource.value = null;
+  }
+  isLoading.value = false;
+};
+
+const sendMessage = () => {
   const question = userInput.value.trim();
   if (!question || isLoading.value) return;
 
-  // 1. 将用户消息添加到列表
   messages.value.push({ role: 'user', content: question });
   userInput.value = '';
   scrollToBottom();
-  
-  // 2. 添加一个“正在输入”的占位符
+
   messages.value.push({ role: 'assistant', content: '', isTyping: true });
   isLoading.value = true;
   scrollToBottom();
-
-  try {
-    // 3. 调用 API 获取答案
-    const answer = await queryRAG(question);
-    console.log('【调试】收到的原始后端响应:', answer);
-    // 4. 更新最后一条消息（“正在输入”的占位符）
-    const lastMessage = messages.value[messages.value.length - 1];
-
-    if (lastMessage) { // <--- 在这里添加检查
-      lastMessage.content = answer;
-      lastMessage.isTyping = false;
-    }
-
-    // lastMessage.content = answer;
-    // lastMessage.isTyping = false;
-
-  } catch (error) {
-    // 5. 处理错误情况
-    const lastMessage = messages.value[messages.value.length - 1];
-    if (lastMessage) {
-      lastMessage.content = '抱歉，回答出错了，请稍后再试。';
-      lastMessage.isTyping = false;
-    }
-    AntMessage.error((error as Error).message || '获取回答失败');
-  } finally {
-    isLoading.value = false;
-    scrollToBottom();
+  
+  // 1. 获取 Token
+  const token = accessStore.accessToken;
+  if (!token) {
+      AntMessage.error('用户认证失败，请重新登录');
+      stopGeneration(); // 停止加载状态
+      // 将占位消息替换为错误提示
+      const lastMessage = messages.value.at(-1);
+      if (lastMessage) lastMessage.content = "认证失败，无法发送消息。";
+      return;
   }
+  
+  // 2. 构建带 Token 的 SSE URL
+  const sseUrl = `/api/system/rag/stream-query?question=${encodeURIComponent(question)}`;
+  
+  eventSource.value = new EventSource(sseUrl, {
+      // 关键！让 EventSource 在跨域请求时携带 Cookie 和认证信息
+      withCredentials: true 
+  });
+
+  const lastMessage = messages.value.at(-1)!;
+  lastMessage.isTyping = false;
+
+  eventSource.value.onmessage = (event) => {
+    // 假设 Python 后端发送的结束信号是 'data: [DONE]\n\n'
+    // 那么 event.data 就是字符串 '[DONE]'
+    const data = event.data;
+    if (data === '[DONE]') {
+      stopGeneration();
+      return;
+    }
+    
+    // 检查是否是错误信息
+    try {
+      const errorObj = JSON.parse(data);
+      if (errorObj.error) {
+        lastMessage.content = `**错误**: ${errorObj.error}`;
+        stopGeneration();
+        return;
+      }
+    } catch (e) {
+      // 不是 JSON，是正常的文本片段，追加到内容中
+      // lastMessage.content += data + '\n';
+      // scrollToBottom();
+    }
+    try {
+      // 将收到的 JSON 字符串解码为普通字符串
+      const textChunk = JSON.parse(data);
+      // 确保解码后是字符串类型
+      if (typeof textChunk === 'string') {
+          lastMessage.content += textChunk;
+          scrollToBottom();
+      }
+    } catch (parseError) {
+        console.error("无法解析收到的 SSE 数据:", data, parseError);
+    }
+  };
+
+  eventSource.value.onerror = (error) => {
+    console.error('EventSource failed:', error);
+    const lastMessage = messages.value.at(-1);
+    if(lastMessage && lastMessage.content === '') {
+        // 如果还未收到任何内容就断开，说明是连接错误
+        lastMessage.content = '抱歉，连接问答服务失败。请检查网络或联系管理员。';
+    }
+    // 如果已经有部分内容，则不再覆盖
+    stopGeneration();
+  };
 };
 
-// 渲染 Markdown
-const renderMarkdown = (text: string) => {
-  // 配置 marked 以处理换行符等
-  return marked(text, { breaks: true, gfm: true });
+// 结合 marked 和 DOMPurify 的安全渲染函数
+const secureRenderMarkdown = (text: string) => {
+  const rawHtml = marked(text, { breaks: true, gfm: true }) as string; // 断言为 string
+  return DOMPurify.sanitize(rawHtml);
 };
-
 </script>
 
 <style scoped>
