@@ -2,7 +2,7 @@
 <template>
   <aside
     v-show="isVisible"
-    class="absolute top-0 bottom-0 left-0 w-64 bg-white shadow-xl z-[1002] transform transition-transform duration-300 ease-out p-4 flex flex-col"
+    class="absolute top-0 bottom-0 left-0 w-56 bg-white shadow-xl z-[1002] transform transition-transform duration-300 ease-out p-4 flex flex-col"
     :class="{ 'translate-x-0': isVisible, '-translate-x-full': !isVisible }"
   >
     <div class="flex justify-between items-center mb-4 pb-2 border-b">
