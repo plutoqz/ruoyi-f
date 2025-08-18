@@ -7,6 +7,8 @@ import { requestClient } from '#/api/request';
 // 定义 API 的访问路径
 const Api = {
   Query: '/system/rag/query',
+  Documents: '/system/rag/documents',
+  Graph: '/system/rag/graph',
 };
 
 // 定义请求的数据载荷类型 (Payload)
@@ -34,4 +36,18 @@ export function queryRAG(question: string): Promise<string> {
       // successMessageMode: 'none',
     }
   );
+}
+
+/**
+ * @description 获取知识库文档列表
+ */
+export function getKnowledgeDocuments() {
+  return requestClient.get<any[]>(Api.Documents);
+}
+
+/**
+ * @description 获取知识图谱数据
+ */
+export function getKnowledgeGraph() {
+  return requestClient.get<any>(Api.Graph);
 }

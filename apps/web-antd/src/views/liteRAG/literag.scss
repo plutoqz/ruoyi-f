@@ -4,7 +4,7 @@
   display: flex;
   flex-direction: column;
   // 设置一个固定的总高度，这是让内部元素撑满的基础
-  height: calc(100vh - 120px); 
+  height: calc(90vh ); //- 120px
 }
 
 .full-height-card {

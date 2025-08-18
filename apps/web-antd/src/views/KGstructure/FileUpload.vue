@@ -30,7 +30,7 @@
 </template>
 
 <script setup>
-import { ref, defineEmits } from 'vue';
+import { ref, defineEmits, onBeforeUnmount } from 'vue';
 
 const emit = defineEmits(['file-processed', 'file-removed']);
 
@@ -45,6 +45,7 @@ const processingStatusMessage = ref('');
 const API_BASE_URL = 'http://localhost:8080'; // Your Spring Boot App URL
 
 let pollingInterval = null;
+let eventSource = null;// 在 setup 作用域内声明一个变量来持有 EventSource 实例
 
 const triggerFileInput = () => {
   fileInputRef.value.click();
@@ -101,14 +102,20 @@ const processZipFileWithBackend = async (selectedFile) => {
 
     const { taskId } = await uploadResponse.json();
     processingStatusMessage.value = '文件上传成功，后端正在解析...';
-    pollForStatus(taskId, selectedFile.name);
+    // 双保险：同时轮询+SSE
+    startPolling(taskId, selectedFile.name);
+    subscribeToTaskEvents(taskId, selectedFile.name);
 
   } catch (error) {
     handleError('文件上传失败', error);
   }
 };
 
-const pollForStatus = (taskId, originalFileName) => {
+
+//轮询方法
+const startPolling = (taskId, originalFileName) => {
+  if (pollingInterval) clearInterval(pollingInterval);
+
   pollingInterval = setInterval(async () => {
     try {
       const statusResponse = await fetch(`/api/files/status/${taskId}`);
@@ -118,7 +125,7 @@ const pollForStatus = (taskId, originalFileName) => {
 
       if (status === 'COMPLETED') {
         clearInterval(pollingInterval);
-        processingStatusMessage.value = '解析完成，正在获取数据...';
+        processingStatusMessage.value = '解析完成（轮询），正在获取数据...';
         fetchData(taskId, originalFileName);
       } else if (status === 'FAILED') {
         clearInterval(pollingInterval);
@@ -128,7 +135,7 @@ const pollForStatus = (taskId, originalFileName) => {
       clearInterval(pollingInterval);
       handleError('获取处理状态失败', error);
     }
-  }, 2000);
+  }, 500); // 半秒一次即可
 };
 
 const fetchData = async (taskId, originalFileName) => {
@@ -137,12 +144,54 @@ const fetchData = async (taskId, originalFileName) => {
     if (!dataResponse.ok) throw new Error(`Failed to fetch data: ${dataResponse.status}`);
     
     const dataRecords = await dataResponse.json();
-    handleExtractedData(dataRecords, originalFileName);
+    handleExtractedData(dataRecords.featureDataList || dataRecords, originalFileName);
 
+    // 成功后关闭 SSE（防止重复触发）
+    if (eventSource) {
+      eventSource.close();
+      eventSource = null;
+    }
   } catch (error) {
     handleError('获取解析数据失败', error);
   }
 };
+
+
+// const pollForStatus = (taskId, originalFileName) => {
+//   pollingInterval = setInterval(async () => {
+//     try {
+//       const statusResponse = await fetch(`/api/files/status/${taskId}`);
+//       if (!statusResponse.ok) throw new Error(`Status check failed: ${statusResponse.status}`);
+      
+//       const { status, error } = await statusResponse.json();
+
+//       if (status === 'COMPLETED') {
+//         clearInterval(pollingInterval);
+//         processingStatusMessage.value = '解析完成，正在获取数据...';
+//         fetchData(taskId, originalFileName);
+//       } else if (status === 'FAILED') {
+//         clearInterval(pollingInterval);
+//         throw new Error(error || '后端解析失败。');
+//       }
+//     } catch (error) {
+//       clearInterval(pollingInterval);
+//       handleError('获取处理状态失败', error);
+//     }
+//   }, 200);
+// };
+
+// const fetchData = async (taskId, originalFileName) => {
+//   try {
+//     const dataResponse = await fetch(`/api/files/data/${taskId}`);
+//     if (!dataResponse.ok) throw new Error(`Failed to fetch data: ${dataResponse.status}`);
+    
+//     const dataRecords = await dataResponse.json();
+//     handleExtractedData(dataRecords, originalFileName);
+
+//   } catch (error) {
+//     handleError('获取解析数据失败', error);
+//   }
+// };
 
 // --- Frontend Processing for .json/.geojson files ---
 
@@ -189,7 +238,7 @@ const handleExtractedData = (dataRecords, originalFileName) => {
     return;
   }
   
-  const firstRecord = dataRecords[0];
+  const firstRecord = dataRecords[0].attributes;
   if (typeof firstRecord !== 'object' || firstRecord === null) {
       handleError("处理失败", new Error("数据记录必须是对象格式。"));
       return;
@@ -201,32 +250,87 @@ const handleExtractedData = (dataRecords, originalFileName) => {
   recordCount.value = dataRecords.length;
   fieldCount.value = attributes.length;
   
-  emit('file-processed', { jsonData: dataRecords, attributeFields: attributes });
+  const allData = { 
+      jsonData: dataRecords.map(item => item.attributes), 
+      attributeFields: attributes
+      // 如果需要，还可以把 relationships 也传出去
+  };
+  emit('file-processed', allData);
   processing.value = false;
 };
 
 const handleError = (message, error) => {
-    console.error(`${message}:`, error);
-    alert(`${message}: ${error.message}`);
-    _reset();
+  console.error(`${message}:`, error);
+  alert(`${message}: ${error.message}`);
+  _reset();
 };
 
 const _reset = () => {
+  if (pollingInterval) {
     clearInterval(pollingInterval);
-    file.value = null;
-    processing.value = false;
-    processingStatusMessage.value = '';
-    recordCount.value = 0;
-    fieldCount.value = 0;
-    if (fileInputRef.value) {
-        fileInputRef.value.value = '';
-    }
+    pollingInterval = null;
+  }
+  if (eventSource) {
+    eventSource.close();
+    eventSource = null;
+  }
+  file.value = null;
+  processing.value = false;
+  processingStatusMessage.value = '';
+  recordCount.value = 0;
+  fieldCount.value = 0;
+  if (fileInputRef.value) {
+    fileInputRef.value.value = '';
+  }
 };
 
 const removeFile = () => {
   _reset();
   emit('file-removed');
 };
+
+
+//SSE 订阅函数
+const subscribeToTaskEvents = (taskId, originalFileName) => {
+  if (eventSource) {
+    eventSource.close();
+  }
+
+  eventSource = new EventSource(`/api/files/subscribe/${taskId}`);
+  processingStatusMessage.value = '已连接到后端（SSE），等待实时处理结果...';
+
+  eventSource.onmessage = (event) => {
+    try {
+      const response = JSON.parse(event.data);
+      
+      if (response.status === 'COMPLETED') {
+        processingStatusMessage.value = '处理完成（SSE），正在加载数据...';
+        clearInterval(pollingInterval); // 停止轮询
+        handleExtractedData(response.data.featureDataList, originalFileName);
+        eventSource.close();
+      } else if (response.status === 'FAILED') {
+        clearInterval(pollingInterval);
+        throw new Error(response.error || '后端处理失败。');
+      }
+    } catch (error) {
+      handleError('处理后端推送消息时出错', error);
+      eventSource.close();
+    }
+  };
+
+  eventSource.onerror = () => {
+    // SSE 出错不要立刻停，等轮询兜底
+    console.warn('SSE 连接出错，使用轮询兜底');
+    eventSource.close();
+  };
+};
+
+// Vue 生命周期钩子：在组件卸载前，确保关闭任何打开的连接
+onBeforeUnmount(() => {
+  if (eventSource) {
+    eventSource.close();
+  }
+});
 </script>
 
 <style scoped>

@@ -1,6 +1,12 @@
 <template>
   <div class="rag-page-container p-4">
-    <a-card title="智能问答助手" :body-style="{ padding: 0 }" class="full-height-card">
+    <Card title="智能问答助手"  :body-style="{ padding: 0 }" class="full-height-card">
+      <template #extra>
+        <a-space>
+          <a-button @click="showModal('kb')">查看知识库</a-button>
+          <a-button @click="showModal('kg')">查看知识图谱</a-button>
+        </a-space>
+      </template>
       <div class="chat-container">
         <!-- 对话展示区域 -->
         <div class="message-list" ref="messageListRef">
@@ -32,20 +38,27 @@
           <a-button v-else danger @click="stopGeneration" class="ml-2">停止</a-button>
         </div>
       </div>
-    </a-card>
+    </Card>
+
+    <a-modal v-model:visible="modalVisible" :title="modalTitle" width="80%" :footer="null" destroyOnClose>
+      <docuview v-if="modalContent === 'kb'" />
+      <kgview v-if="modalContent === 'kg'" :visible="modalVisible"/>
+    </a-modal>
   </div>
 </template>
 
 <script lang="ts" setup>
-import { ref, nextTick, shallowRef } from 'vue';
-import { Card, Input, Button, Spin, message as AntMessage } from 'ant-design-vue';
+import { ref, nextTick, shallowRef,computed } from 'vue';
+import { Card, Input, Button, Spin, message as AntMessage, Space, Modal  } from 'ant-design-vue';
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
 import { useAccessStore } from '@vben/stores'; // 引入用于获取 Token 的 store
-
+import docuview from './docuview.vue'
+import kgview from './kgview.vue';
 // 确保你的项目中存在 @vben/stores 并导出了 useAccessStore
 // 如果你的 store 不叫这个名字，请替换成你项目中实际的 store
-
+const ASpace = Space;
+const AModal = Modal;
 // 强制同步渲染
 marked.setOptions({ async: false });
 
@@ -170,6 +183,19 @@ const sendMessage = () => {
 const secureRenderMarkdown = (text: string) => {
   const rawHtml = marked(text, { breaks: true, gfm: true }) as string; // 断言为 string
   return DOMPurify.sanitize(rawHtml);
+};
+
+
+const modalVisible = ref(false);
+const modalContent = ref<'kb' | 'kg'>('kb');
+
+const modalTitle = computed(() => {
+  return modalContent.value === 'kb' ? '知识库文档' : '知识图谱';
+});
+
+const showModal = (type: 'kb' | 'kg') => {
+  modalContent.value = type;
+  modalVisible.value = true;
 };
 </script>
 
