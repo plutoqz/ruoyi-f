@@ -24,7 +24,14 @@ const props = defineProps({
     type: Object,
     required: true,
   },
-  isLoading: { type: Boolean, default: true }
+  isLoading: { 
+    type: Boolean, 
+    default: true 
+  },
+  mapTheme: { 
+    type: String, 
+    default: 'normal' 
+  } // **新增：接收主题 prop**
 });
 
 // 定义要发出的事件
@@ -84,6 +91,19 @@ async function initializeMap() {
 
 onMounted(initializeMap);
 watch(() => props.provider, initializeMap);
+
+// **新增：监听 mapTheme prop 的变化**
+watch(() => props.mapTheme, (newTheme) => {
+  if (localAdapter.value && typeof localAdapter.value.setTheme === 'function') {
+    console.log(`[MapContainer] Calling setTheme('${newTheme}') on adapter.`);
+    localAdapter.value.setTheme(newTheme);
+  } else {
+    // 如果适配器不支持 setTheme，或者还未初始化，可以考虑重新初始化地图
+    // 重新初始化会保持视图位置，是比较稳妥的 fallback
+    console.log('[MapContainer] Adapter does not support setTheme or is not ready, re-initializing map.');
+    initializeMap();
+  }
+});
 
 onBeforeUnmount(() => {
   if (localAdapter.value) {

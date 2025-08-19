@@ -17,18 +17,31 @@ export class AmapAdapter {
     this._infoQueryClickHandler = this._handleInfoQueryClick.bind(this);
     this.drawTool = null; // **新增：绘制工具实例**
     this._onDrawHandler = null;
+    this.defaultLayers = null; // **新增：用于缓存默认图层**
+    this.satelliteLayer = null; // **新增：存储卫星图层实例**
+    this.roadNetLayer = null;   // **新增：存储路网图层实例**
   }
 
   async init(initialView) {
     await loadAmapSdk(this.key, this.securityCode);
+    // 初始化卫星和路网图层，但不添加到地图
+    this.satelliteLayer = new AMap.TileLayer.Satellite();
+    this.roadNetLayer = new AMap.TileLayer.RoadNet();
+    // 创建地图实例
     this.map = new AMap.Map(this.containerId, {
       resizeEnable: true,
       center: initialView.center,
       zoom: initialView.zoom,
       viewMode: '2D',
     });
-    console.log('[AmapAdapter] Map object created. Resolving init promise.');
-    return this;
+    return new Promise(resolve => {
+        this.map.on('complete', () => {
+            // getLayers() 返回一个图层数组
+            this.defaultLayers = this.map.getLayers();
+            console.log('[AmapAdapter] Default layers cached:', this.defaultLayers);
+            resolve(this);
+        });
+    });
   }
 
    destroy() {
@@ -49,6 +62,33 @@ export class AmapAdapter {
     this.layers = null;
     this.infoWindow = null;
     
+  }
+
+  // **新增：设置地图主题**
+  setTheme(theme) { // theme is 'normal' or 'satellite'
+    if (this.currentTheme === theme || !this.map) {
+      return;
+    }
+
+    if (theme === 'satellite') {
+      // 切换到卫星模式
+      // 先移除默认的街道图层（如果有的话），再添加卫星和路网
+      this.map.setLayers([
+        this.satelliteLayer,
+        this.roadNetLayer
+      ]);
+      console.log('[AmapAdapter] Switched to satellite theme.');
+    } else { // theme === 'normal'
+      if (this.defaultLayers) {
+        // **关键修改：恢复缓存的默认图层**
+        this.map.setLayers(this.defaultLayers);
+        console.log('[AmapAdapter] Switched to normal theme by restoring cached layers.');
+      } else {
+        // Fallback, 以防万一缓存失败
+        this.map.setDefaultLayer();
+      }
+    }
+    this.currentTheme = theme;
   }
 
   getMapView() {

@@ -52,10 +52,10 @@
       <section>
           <h3 class="font-semibold text-gray-700">处罚方案</h3>
           <div class="mt-2 space-y-2">
-            <button @click="handleBatchPenalty" class="w-full text-left p-2 rounded flex items-center hover:bg-gray-100">
+            <!-- <button @click="handleBatchPenalty" class="w-full text-left p-2 rounded flex items-center hover:bg-gray-100">
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="mr-2"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect></svg>
               生成方案
-            </button>
+            </button> -->
             <button @click="handleBatchPenalty" class="w-full text-left p-2 rounded flex items-center hover:bg-gray-100">
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="mr-2"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect></svg>
               智能判罚

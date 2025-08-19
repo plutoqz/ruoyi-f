@@ -5,6 +5,7 @@
     <MapContainer 
       :provider="currentMapProvider"
       :provider-config="providerConfig"
+      :map-theme="currentMapTheme"
       @ready="onMapReady"
       :is-loading="!isMapReady"
       @unready="onMapUnready"
@@ -36,12 +37,17 @@
         <option value="tencent">腾讯地图</option>
         <option value="osm">OSM</option>
       </select>
+
+      <button @click="toggleMapTheme" class="ml-2 p-2 rounded-full hover:bg-gray-100 transition-colors" title="切换影像/街道">
+        <svg v-if="currentMapTheme === 'normal'" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-gray-700"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>
+        <svg v-else xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-gray-700"><circle cx="12" cy="12" r="10"></circle><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"></polygon></svg>
+      </button>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, provide } from 'vue';
+import { ref, computed, provide, watch } from 'vue';
 import MapContainer from './components/map/MapContainer.vue';
 import AppSidebar from './components/map/AppSidebar.vue';
 import { transformGeoJsonCoords, wgs84togcj02 } from './map-logic/coordTransform.js';
@@ -59,6 +65,7 @@ import osmLogo from '/osm.png';
 const mapAdapter = ref(null);
 const isMapReady = ref(false);
 const loadedLayersData = ref([]);
+const currentMapTheme = ref('normal'); // 'normal' 或 'satellite',切换卫星地图和街道地图
 
 // --- 2. 将这些状态 provide 给所有子组件 ---
 provide('mapAdapter', mapAdapter);
@@ -174,4 +181,17 @@ function addLayer(payload) {
     // 需要触发一次图层重载或直接调用 adapter 添加
     reAddAllLayers(mapAdapter.value);
 }
+
+// 切换地图主题（影像/街道）
+function toggleMapTheme() {
+  currentMapTheme.value = currentMapTheme.value === 'normal' ? 'satellite' : 'normal';
+  console.log(`[App.vue] Map theme changed to: ${currentMapTheme.value}`);
+}
+
+// 监听地图提供商的变化，如果切换到了不支持卫星图的源（例如OSM），则自动切回普通模式
+watch(currentMapProvider, (newProvider) => {
+  if (newProvider === 'osm') {
+    currentMapTheme.value = 'normal';
+  }
+});
 </script>

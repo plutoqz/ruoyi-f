@@ -2,59 +2,80 @@
   <!-- 模态框的遮罩层 -->
   <div v-if="isVisible" class="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-[2000]" @click.self="$emit('close')">
     <!-- 模态框主体 -->
-    <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-3xl max-h-[85vh] flex flex-col">
+    <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-6xl max-h-[90vh] flex flex-col"> <!-- 增加了宽度和高度 -->
       <!-- 头部 -->
       <div class="flex justify-between items-center mb-4 pb-3 border-b">
-        <h2 class="text-xl font-bold text-gray-800">生成处罚方案</h2>
+        <h2 class="text-xl font-bold text-gray-800">生成处罚方案与智能分析</h2>
         <button @click="$emit('close')" class="text-gray-500 hover:text-gray-800 text-2xl leading-none">&times;</button>
       </div>
 
       <!-- 内容区 -->
-      <div class="flex-grow overflow-y-auto pr-2 custom-scrollbar">
-        <!-- 批量模式下的图层选择 -->
-        <div v-if="mode === 'batch'" class="mb-4">
-          <h3 class="font-semibold mb-2 text-gray-700">选择要处罚的图层:</h3>
-          <div class="space-y-2 max-h-48 overflow-y-auto border p-3 rounded-md bg-gray-50">
-            <label v-for="layer in selectableLayers" :key="layer.id" class="flex items-center cursor-pointer hover:bg-gray-100 p-1 rounded">
-              <input type="checkbox" :value="layer.id" v-model="selectedLayerIds" class="mr-3 h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
-              <span class="text-gray-800">{{ layer.name }} ({{ (layer.area || 0).toFixed(2) }} m²)</span>
-            </label>
+      <div class="flex-grow overflow-hidden flex space-x-4">
+        
+        <!-- 左侧：表单和处罚方案 -->
+        <div class="w-1/2 flex flex-col">
+          <h3 class="text-lg font-semibold text-gray-800 mb-3">1. 生成处罚方案</h3>
+          <div class="flex-grow overflow-y-auto pr-2 custom-scrollbar">
+            <!-- 批量模式下的图层选择 -->
+            <div v-if="mode === 'batch'" class="mb-4">
+              <h3 class="font-semibold mb-2 text-gray-700">选择要处罚的图层:</h3>
+              <div class="space-y-2 max-h-48 overflow-y-auto border p-3 rounded-md bg-gray-50">
+                <label v-for="layer in selectableLayers" :key="layer.id" class="flex items-center cursor-pointer hover:bg-gray-100 p-1 rounded">
+                  <input type="checkbox" :value="layer.id" v-model="selectedLayerIds" class="mr-3 h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
+                  <span class="text-gray-800">{{ layer.name }} ({{ (layer.area || 0).toFixed(2) }} m²)</span>
+                </label>
+              </div>
+            </div>
+
+            <!-- 违规类型选择 -->
+            <div class="mb-4">
+              <label for="issue-type" class="block font-semibold mb-2 text-gray-700">选择违规类型:</label>
+              <select id="issue-type" v-model="selectedIssue" class="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <option value="非法占用土地(未批先建)">非法占用土地(未批先建)</option>
+                <option value="擅自将农用地改为建设用地">擅自将农用地改为建设用地</option>
+                <option value="非法转让土地">非法转让土地</option>
+                <option value="农村村民非法占地建住宅">农村村民非法占地建住宅</option>
+                <option value="拒不履行土地复垦义务">拒不履行土地复垦义务</option>
+                <option value="临时用地上建永久建筑">临时用地上建永久建筑</option>
+                <option value="临时用地逾期未恢复">临时用地逾期未恢复</option>
+              </select>
+            </div>
+            
+            <!-- 土地类型选择 -->
+            <div class="mb-4">
+              <label for="land-type" class="block font-semibold mb-2 text-gray-700">选择土地类型 (将应用于所有选中图层):</label>
+              <select id="land-type" v-model="selectedLandType" class="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <option value="其他土地">其他土地</option>
+                <option value="耕地">耕地</option>
+                <option value="基本农田">基本农田</option>
+              </select>
+            </div>
+
+            <!-- 生成的处罚方案文本 -->
+            <div class="bg-gray-100 p-4 border border-gray-200 rounded-md">
+              <pre class="whitespace-pre-wrap font-mono text-sm leading-relaxed text-gray-900">{{ penaltyText }}</pre>
+            </div>
           </div>
         </div>
 
-        <!-- 违规类型选择 -->
-        <div class="mb-4">
-          <label for="issue-type" class="block font-semibold mb-2 text-gray-700">选择违规类型:</label>
-          <select id="issue-type" v-model="selectedIssue" class="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
-            <option value="非法占用土地(未批先建)">非法占用土地(未批先建)</option>
-            <option value="擅自将农用地改为建设用地">擅自将农用地改为建设用地</option>
-            <option value="非法转让土地">非法转让土地</option>
-            <option value="农村村民非法占地建住宅">农村村民非法占地建住宅</option>
-            <option value="拒不履行土地复垦义务">拒不履行土地复垦义务</option>
-            <option value="临时用地上建永久建筑">临时用地上建永久建筑</option>
-            <option value="临时用地逾期未恢复">临时用地逾期未恢复</option>
-          </select>
-        </div>
-        
-        <!-- 土地类型选择 -->
-        <div class="mb-4">
-          <label for="land-type" class="block font-semibold mb-2 text-gray-700">选择土地类型 (将应用于所有选中图层):</label>
-          <select id="land-type" v-model="selectedLandType" class="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
-            <option value="其他土地">其他土地</option>
-            <option value="耕地">耕地</option>
-            <option value="基本农田">基本农田</option>
-          </select>
+        <!-- 右侧：智能问答助手 -->
+        <div class="w-1/2 flex flex-col border-l pl-4">
+           <div class="flex justify-between items-center mb-3">
+             <h3 class="text-lg font-semibold text-gray-800">2. 咨询智能助手</h3>
+             <button @click="askAssistant" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-sm font-semibold" :disabled="activeLayers.length === 0">
+               发送方案进行分析
+             </button>
+           </div>
+          <div class="flex-grow overflow-hidden border rounded-md">
+            <!-- RAG 组件放在这里 -->
+            <LiteRag ref="liteRagRef" />
+          </div>
         </div>
 
-
-        <!-- 生成的处罚方案文本 -->
-        <div class="bg-gray-100 p-4 border border-gray-200 rounded-md">
-          <pre class="whitespace-pre-wrap font-mono text-sm leading-relaxed text-gray-900">{{ penaltyText }}</pre>
-        </div>
       </div>
 
       <!-- 底部按钮 -->
-      <div class="mt-6 pt-4 border-t text-right">
+      <div class="mt-4 pt-4 border-t text-right">
         <button @click="$emit('close')" class="px-5 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600 transition-colors">关闭</button>
       </div>
     </div>
@@ -64,6 +85,8 @@
 <script setup>
 import { ref, computed, watch } from 'vue';
 import { getPenaltyDetails } from '../penalty_logic/penaltyService';
+import LiteRag from '../../liteRAG/index.vue';
+
 const props = defineProps({
   isVisible: Boolean,
   layers: { type: Array, required: true },
@@ -74,8 +97,9 @@ const props = defineProps({
 defineEmits(['close']);
 
 const selectedIssue = ref('非法占用土地(未批先建)');
-const selectedLandType = ref('其他土地'); // 新增：土地类型
+const selectedLandType = ref('其他土地');
 const selectedLayerIds = ref([]);
+const liteRagRef = ref(null); // 创建一个 ref 来引用 LiteRag 组件实例
 
 // 监听模式和图层变化，自动选择
 watch(() => [props.layers, props.mode], () => {
@@ -132,6 +156,28 @@ ${totalFineText}
   
   return `${individualReports}\n\n备注: 该处罚方案为系统根据《陕西省自然资源行政处罚裁量权实施基准》自动生成，具体执行需结合实际情况调整。`;
 });
+
+// --- 新增函数 ---
+// 点击按钮时调用此函数
+const askAssistant = () => {
+  // 检查 ref 是否已挂载且处罚文本不为空
+  if (liteRagRef.value && penaltyText.value && !penaltyText.value.startsWith('请在上方选择')) {
+    // 构造一个更自然的问题
+    const question = `
+你好，请根据以下自动生成的处罚方案，帮我分析一下其中涉及的关键法律条款、处罚依据，并给出后续处理建议。
+
+---
+${penaltyText.value}
+---
+    `;
+    // 调用子组件暴露的 sendQuery 方法
+    liteRagRef.value.sendQuery(question);
+  } else {
+    // 如果没有选择图层，可以给个提示
+    alert('请先生成处罚方案，然后再进行咨询。');
+  }
+};
+
 </script>
 
 <style scoped>

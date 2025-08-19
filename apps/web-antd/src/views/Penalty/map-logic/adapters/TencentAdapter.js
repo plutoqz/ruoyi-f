@@ -12,13 +12,23 @@ export class TencentAdapter {
     this.infoWindow = null;
     this._infoQueryClickHandler = this._handleInfoQueryClick.bind(this);
     this.drawingManager = null; // **新增：绘制管理器**
+
+    this.currentTheme = 'normal';
   }
 
   async init(initialView) {
     await loadTencentSdk(this.key);
+
+    // **新增：根据初始主题决定 mapTypeId**
+    // 假设 initialView 中可能包含 theme 信息，或者我们直接使用 this.currentTheme
+    const initialMapTypeId = this.currentTheme === 'satellite' 
+      ? qq.maps.MapTypeId.HYBRID  
+      : qq.maps.MapTypeId.ROADMAP;
+
     this.map = new qq.maps.Map(document.getElementById(this.containerId), {
       center: new qq.maps.LatLng(initialView.center[1], initialView.center[0]),
       zoom: initialView.zoom,
+      mapTypeId: initialMapTypeId,
       mapTypeControl: false,
       panControl: false,
       zoomControl: false
@@ -26,19 +36,35 @@ export class TencentAdapter {
     return this;
   }
 
+  setTheme(theme) { // theme is 'normal' or 'satellite'
+    if (this.currentTheme === theme || !this.map) {
+      return;
+    }
+
+    if (theme === 'satellite') {
+      this.map.setMapTypeId(qq.maps.MapTypeId.HYBRID );
+    } else { // theme === 'normal'
+      this.map.setMapTypeId(qq.maps.MapTypeId.ROADMAP);
+    }
+
+    this.currentTheme = theme;
+    console.log(`[TencentAdapter] Switched to ${theme} theme.`);
+  }
+
   destroy() {
+    this.disablePolygonDraw(); // 确保绘制工具被清理
     const container = document.getElementById(this.containerId);
     if (container) container.innerHTML = '';
     
-    // **增加安全检查**
     if (this.layers && typeof this.layers.clear === 'function') {
       this.layers.forEach(layerInfo => {
-        layerInfo.mapOverlays.forEach(overlay => overlay.setMap(null));
+        if (layerInfo && layerInfo.mapOverlays) {
+            layerInfo.mapOverlays.forEach(overlay => overlay.setMap(null));
+        }
       });
       this.layers.clear();
     }
-    this.drawingManager = null;
-    // 确保所有引用被清理
+    
     this.layers = null;
     this.map = null;
     this.infoWindow = null;

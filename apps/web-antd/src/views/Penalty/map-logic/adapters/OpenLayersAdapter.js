@@ -24,33 +24,71 @@ export class OpenLayersAdapter {
     this.infoOverlay = null;
     this.infoOverlayElement = null;
     this._infoQueryClickHandler = this._handleInfoQueryClick.bind(this);
-    this.polygonDrawInteraction = null; // **新增：专门用于绘制多边形的交互**
-    this.polygonDrawLayer = null; // <-- 新增一个属性来管理临时图层
-    this.polygonDrawCallback = null; // 新增：存储绘制回调函数
+    this.polygonDrawInteraction = null;
+    this.polygonDrawLayer = null;
+    this.polygonDrawCallback = null;
+
+    // **修改：用于主题切换的属性**
+    this.defaultLayers = []; // 存储默认的矢量底图和注记图层
+    this.satelliteLayers = []; // 存储卫星影像和注记图层
+    this.currentTheme = 'normal'; // 当前主题
   }
 
   async init(initialView) {
-    const center = fromLonLat(initialView.center); // OL uses EPSG:3857, transform from WGS84
+    const center = fromLonLat(initialView.center); // OL uses EPSG:3_857, transform from WGS84
     
-    const tileLayers = [];
+    let allBaseLayers = []; // 用一个数组来存储所有可能的底图
     if (this.provider === 'tianditu') {
-      // 天地图矢量底图
-      tileLayers.push(new TileLayer({
+      // **核心修改：逐一创建、存储并添加图层到初始化数组，以确保稳定性**
+
+      // 1. 天地图矢量底图 (默认可见)
+      const vecLayer = new TileLayer({
         source: new XYZ({
           url: `https://t{0-7}.tianditu.gov.cn/DataServer?T=vec_w&x={x}&y={y}&l={z}&tk=${this.key}`,
           crossOrigin: 'anonymous',
         }),
-      }));
-      // 天地图注记
-      tileLayers.push(new TileLayer({
+        visible: true, 
+      });
+      this.defaultLayers.push(vecLayer);
+      allBaseLayers.push(vecLayer);
+
+      // 2. 天地图矢量注记 (默认可见)
+      const cvaLayer = new TileLayer({
         source: new XYZ({
           url: `https://t{0-7}.tianditu.gov.cn/DataServer?T=cva_w&x={x}&y={y}&l={z}&tk=${this.key}`,
           crossOrigin: 'anonymous',
         }),
         zIndex: 1,
-      }));
+        visible: true,
+      });
+      this.defaultLayers.push(cvaLayer);
+      allBaseLayers.push(cvaLayer);
+
+      // 3. 天地图卫星影像 (默认不可见)
+      const satelliteLayer = new TileLayer({
+        source: new XYZ({
+          url: `https://t{0-7}.tianditu.gov.cn/DataServer?T=img_w&x={x}&y={y}&l={z}&tk=${this.key}`,
+          crossOrigin: 'anonymous',
+        }),
+        visible: false,
+      });
+      this.satelliteLayers.push(satelliteLayer);
+      allBaseLayers.push(satelliteLayer);
+
+      // 4. 天地图影像注记 (默认不可见)
+      const satelliteAnnoLayer = new TileLayer({
+        source: new XYZ({
+          url: `https://t{0-7}.tianditu.gov.cn/DataServer?T=cia_w&x={x}&y={y}&l={z}&tk=${this.key}`,
+          crossOrigin: 'anonymous',
+        }),
+        zIndex: 1,
+        visible: false,
+      });
+      this.satelliteLayers.push(satelliteAnnoLayer);
+      allBaseLayers.push(satelliteAnnoLayer);
+
     } else { // 'osm'
-      tileLayers.push(new TileLayer({
+      allBaseLayers.push(new TileLayer({
         source: new XYZ({
           url: 'https://{a-c}.tile.openstreetmap.org/{z}/{x}/{y}.png',
           crossOrigin: 'anonymous',
@@ -60,7 +98,7 @@ export class OpenLayersAdapter {
 
     this.map = new Map({
       target: this.containerId,
-      layers: tileLayers,
+      layers: allBaseLayers, // **使用逐步构建的数组进行初始化**
       view: new View({
         center: center,
         zoom: initialView.zoom,
@@ -69,32 +107,47 @@ export class OpenLayersAdapter {
       controls: [], // Hide default controls
     });
     
-    // 创建用于信息弹窗的Overlay
     this._createInfoOverlay();
+    return this;
+  }
 
-    return this; // No async needed after map creation
+  // **核心修改：使用 setVisible 切换主题，而不是 add/remove layer**
+  setTheme(theme) {
+    if (!this.map || this.currentTheme === theme || this.provider !== 'tianditu') {
+      return;
+    }
+
+    if (theme === 'satellite') {
+      // 切换到卫星模式：隐藏默认图层，显示卫星图层
+      this.defaultLayers.forEach(layer => layer.setVisible(false));
+      this.satelliteLayers.forEach(layer => layer.setVisible(true));
+      console.log('[OpenLayersAdapter] Switched to satellite theme.');
+    } else { // theme === 'normal'
+      // 切换到普通模式：隐藏卫星图层，显示默认图层
+      this.satelliteLayers.forEach(layer => layer.setVisible(false));
+      this.defaultLayers.forEach(layer => layer.setVisible(true));
+      console.log('[OpenLayersAdapter] Switched to normal theme.');
+    }
+
+    this.currentTheme = theme;
   }
 
   destroy() {
     if (this.map) {
-      // this.layers.forEach(layer => {
-      //   try {
-      //     this.map.removeLayer(layer);
-      //   } catch (e) { /* ignore */ }
-      // });
       this.map.setTarget(null);
       this.map = null;
     }
-    // **增加安全检查**
     if (this.layers && typeof this.layers.clear === 'function') {
       this.layers.clear();
     }
     if (this.polygonDrawInteraction) this.map.removeInteraction(this.polygonDrawInteraction);
-    // 确保所有引用被清理
     this.layers = null;
     this.drawInteraction = null;
     this.drawLayer = null;
     this.infoOverlay = null;
+    // **新增：清理主题图层引用**
+    this.defaultLayers = [];
+    this.satelliteLayers = [];
   }
 
   getMapView() {
@@ -102,12 +155,11 @@ export class OpenLayersAdapter {
     const view = this.map.getView();
     const center3857 = view.getCenter();
     return {
-      center: toLonLat(center3857), // Transform back to WGS84 for consistency
+      center: toLonLat(center3857),
       zoom: view.getZoom(),
     };
   }
   
-  // 假设传入的geojson是 WGS84 (EPSG:4326)
   addGeoJsonLayer(geojson, options) {
     const layerId = options.id || uuidv4();
     const vectorSource = new VectorSource({
@@ -122,7 +174,6 @@ export class OpenLayersAdapter {
           stroke: new Stroke({ color: '#fff', width: 2 }),
         });
       }
-      // Add other styles for points and lines if needed
       return new Style({ /* default style */ });
     };
 
@@ -145,35 +196,21 @@ export class OpenLayersAdapter {
   }
 
   removeLayer(layerId) {
-    console.log(`[OpenLayersAdapter] Attempting to remove layer with ID: ${layerId}`);
-    
-    // 直接从 Map 中获取 VectorLayer 实例
     const layerToRemove = this.layers.get(layerId);
-
     if (layerToRemove) {
-      console.log('[OpenLayersAdapter] Layer found, removing from map:', layerToRemove);
       try {
-        this.map.removeLayer(layerToRemove); // 使用获取到的对象引用
-        this.layers.delete(layerId); // 如果成功，从我们的映射中删除
-        console.log(`[OpenLayersAdapter] Layer ${layerId} removed successfully.`);
+        this.map.removeLayer(layerToRemove);
+        this.layers.delete(layerId);
       } catch (e) {
         console.error(`[OpenLayersAdapter] Error removing layer ${layerId}:`, e);
       }
-    } else {
-      console.warn(`[OpenLayersAdapter] Layer with ID ${layerId} not found in the layer map.`);
     }
   }
 
   toggleLayerVisibility(layerId, isVisible) {
-    console.log(`[OpenLayersAdapter] Toggling visibility for layer ${layerId} to ${isVisible}`);
-    
     const layerToToggle = this.layers.get(layerId);
-    
     if (layerToToggle) {
-      console.log('[OpenLayersAdapter] Layer found, setting visibility:', layerToToggle);
       layerToToggle.setVisible(isVisible);
-    } else {
-      console.warn(`[OpenLayersAdapter] Layer with ID ${layerId} not found for toggling visibility.`);
     }
   }
 
@@ -192,14 +229,15 @@ export class OpenLayersAdapter {
     this.drawInteraction.on('drawend', event => {
       const extent = event.feature.getGeometry().getExtent();
       const selectedFeatures = [];
-      this.layers.forEach((layerInfo, layerId) => {
-        if (layerInfo.isVisible) {
-          layerInfo.mapLayer.getSource().forEachFeatureInExtent(extent, (feature) => {
+      // **BUG修复：修正了获取图层和其属性的方式**
+      this.layers.forEach((vectorLayer, layerId) => {
+        if (vectorLayer.getVisible()) { 
+          vectorLayer.getSource().forEachFeatureInExtent(extent, (feature) => {
             const props = {...feature.getProperties()};
-            delete props.geometry; // Clean up properties
+            delete props.geometry;
             selectedFeatures.push({
               layerId: layerId,
-              layerName: layerInfo.name,
+              layerName: vectorLayer.get('name'),
               properties: props,
             });
           });
@@ -234,7 +272,7 @@ export class OpenLayersAdapter {
 
   _createInfoOverlay() {
       this.infoOverlayElement = document.createElement('div');
-      this.infoOverlayElement.className = 'custom-info-window'; // Add your styles
+      this.infoOverlayElement.className = 'custom-info-window';
       this.infoOverlay = new Overlay({
         element: this.infoOverlayElement,
         autoPan: { animation: { duration: 250 } },
@@ -247,7 +285,7 @@ export class OpenLayersAdapter {
     const feature = this.map.forEachFeatureAtPixel(event.pixel, (f) => f);
     if (feature) {
       const props = feature.getProperties();
-      const area = feature.getGeometry().getArea(); // Returns area in projection units (m²)
+      const area = feature.getGeometry().getArea();
       const content = `
         <div style="background:white; border-radius:8px; box-shadow:0 2px 10px rgba(0,0,0,0.2); width:auto; min-width:200px; padding:10px;">
           <div style="font-weight:bold; border-bottom:1px solid #eee; padding-bottom:5px; margin-bottom:5px;">${props.name || '区域信息'}</div>
@@ -259,18 +297,14 @@ export class OpenLayersAdapter {
     }
   }
 
-
   enablePolygonDraw(onDrawEndCallback) {
-    // 存储回调函数以便后续使用
     this.polygonDrawCallback = onDrawEndCallback;
     
-    // 如果已经启用了绘制，则只需重置状态
     if (this.polygonDrawInteraction) {
       this._resetPolygonDraw();
       return;
     }
 
-    // 第一次启用时创建资源
     this.polygonDrawSource = new VectorSource();
     this.polygonDrawLayer = new VectorLayer({ 
       source: this.polygonDrawSource,
@@ -286,14 +320,12 @@ export class OpenLayersAdapter {
     });
     this.map.addLayer(this.polygonDrawLayer);
 
-    // 创建绘制交互
     this.polygonDrawInteraction = new Draw({
       source: this.polygonDrawSource,
       type: 'Polygon',
     });
     this.map.addInteraction(this.polygonDrawInteraction);
 
-    // 处理绘制结束事件
     this.polygonDrawInteraction.on('drawend', this._handlePolygonDrawEnd.bind(this));
   }
 
@@ -302,42 +334,21 @@ export class OpenLayersAdapter {
       this.map.removeInteraction(this.polygonDrawInteraction);
       this.polygonDrawInteraction = null;
     }
-    
     if (this.polygonDrawLayer) {
       this.map.removeLayer(this.polygonDrawLayer);
       this.polygonDrawLayer = null;
     }
-    
     if (this.polygonDrawSource) {
       this.polygonDrawSource.clear();
       this.polygonDrawSource = null;
     }
-    
     this.polygonDrawCallback = null;
   }
 
-  // 新增：重置绘制状态
   _resetPolygonDraw() {
-    // 清除之前的绘制
-    this.polygonDrawSource.clear();
-    
-    // 移除旧的绘制交互
-    this.map.removeInteraction(this.polygonDrawInteraction);
-    
-    // 创建新的绘制交互
-    this.polygonDrawInteraction = new Draw({
-      source: this.polygonDrawSource,
-      type: 'Polygon',
-    });
-    
-    // 重新添加交互
-    this.map.addInteraction(this.polygonDrawInteraction);
-    
-    // 重新绑定事件
-    this.polygonDrawInteraction.on('drawend', this._handlePolygonDrawEnd.bind(this));
+    if (this.polygonDrawSource) this.polygonDrawSource.clear();
   }
 
-  // 新增：处理多边形绘制结束
   _handlePolygonDrawEnd(event) {
     const feature = event.feature;
     const geojsonFormat = new GeoJSON({ featureProjection: 'EPSG:3857' });
@@ -347,12 +358,10 @@ export class OpenLayersAdapter {
       features: [geojsonFeature],
     };
 
-    // 调用回调
     if (this.polygonDrawCallback) {
       this.polygonDrawCallback(featureCollection);
     }
 
-    // 重置绘制状态而不是关闭
     setTimeout(() => {
       this._resetPolygonDraw();
     }, 0);
