@@ -29,6 +29,7 @@
       @change="handleFileSelected" 
       style="display: none" 
       accept=".zip,.json,.geojson,application/zip,application/json"
+      multiple
     />
   </div>
 </template>
@@ -50,11 +51,18 @@ const triggerFileInput = () => {
 };
 
 const handleFileSelected = (event) => {
-  const file = event.target.files[0];
-  if (file) {
-    emit('add-source', file);
+  const files = event.target.files;
+  if (files && files.length > 0){
+    for (const file of files){
+      emit('add-source', file);
+    }
   }
   event.target.value = '';
+  // const file = event.target.files[0];
+  // if (file) {
+  //   emit('add-source', file);
+  // }
+  // event.target.value = '';
 };
 
 const removeDataSource = (index) => {
