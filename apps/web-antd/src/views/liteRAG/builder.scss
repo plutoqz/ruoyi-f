@@ -1,0 +1,271 @@
+
+// ------------ 设计变量 ------------
+$kb-primary: #1677ff;
+$kb-success: #52c41a;
+$kb-error: #ff4d4f;
+$kb-bg: #f5f7fa;
+$kb-card-bg: #ffffff;
+$kb-border: #e5e7eb;
+$kb-text: #262626;
+$kb-text-secondary: #666;
+$kb-radius: 6px;
+$kb-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+$kb-gap: 16px;
+$kb-max-width: 960px;
+
+// ------------ 通用工具 ------------
+%flex-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+%text-ellipsis {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+// ------------ 页面骨架 ------------
+.kb-container {
+  padding: 24px;
+  background: $kb-bg;
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+
+  // 卡片
+  .kb-card {
+    width: 100%;
+    max-width: $kb-max-width;
+    background: $kb-card-bg;
+    border: 1px solid $kb-border;
+    border-radius: $kb-radius;
+    box-shadow: $kb-shadow;
+    overflow: hidden;
+
+    // 卡片头部
+    .kb-card-head {
+      padding: 16px 24px;
+      font-size: 18px;
+      font-weight: 600;
+      color: $kb-card-bg;
+      background: $kb-primary;
+    }
+
+    // 卡片主体
+    .kb-card-body {
+      padding: 24px;
+    }
+  }
+}
+
+// ------------ 步骤条 ------------
+.kb-steps {
+  margin-bottom: 32px;
+  display: flex;
+  justify-content: space-between;
+
+  .kb-step {
+    flex: 1;
+    position: relative;
+    text-align: center;
+    color: $kb-text-secondary;
+    font-size: 14px;
+
+    &::after {
+      content: "";
+      position: absolute;
+      top: 12px;
+      left: 50%;
+      width: 100%;
+      height: 2px;
+      background: $kb-border;
+      z-index: 1;
+    }
+
+    &:last-child::after {
+      display: none;
+    }
+
+    &.active {
+      color: $kb-primary;
+      font-weight: 600;
+
+      &::before {
+        background: $kb-primary;
+      }
+    }
+
+    &::before {
+      content: "";
+      display: block;
+      width: 24px;
+      height: 24px;
+      line-height: 24px;
+      margin: 0 auto 8px;
+      border-radius: 50%;
+      background: $kb-border;
+      color: #fff;
+      z-index: 2;
+      position: relative;
+    }
+  }
+}
+
+// ------------ 步骤内容 ------------
+.kb-step-content {
+  min-height: 360px;
+
+  // 上传区域
+  /* 覆盖上传拖拽区域 */
+.kb-upload {
+  border: 2px dashed #ccc; /* 使用具体颜色值 */
+  border-radius: 4px;
+  max-height: 280px;
+  overflow-y: auto;
+
+  &:hover {
+    border-color: #007bff;
+    box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
+  }
+
+  .ant-upload-drag-icon,
+  .ant-upload-text,
+  .ant-upload-hint {
+    color: inherit;
+  }
+}
+
+  // 按钮组
+  .kb-actions {
+    margin-top: 24px;
+    display: flex;
+    gap: 12px;
+
+    .kb-btn {
+      display: inline-block;
+      padding: 8px 20px;
+      font-size: 14px;
+      line-height: 1.5715;
+      border: 1px solid transparent;
+      border-radius: $kb-radius;
+      cursor: pointer;
+      transition: all 0.3s;
+
+      &.primary {
+        color: #fff;
+        background: $kb-primary;
+        border-color: $kb-primary;
+
+        &:hover {
+          background: lighten($kb-primary, 8%);
+          border-color: lighten($kb-primary, 8%);
+        }
+
+        &:disabled {
+          background: lighten($kb-primary, 30%);
+          border-color: lighten($kb-primary, 30%);
+          cursor: not-allowed;
+        }
+      }
+
+      &.secondary {
+        color: $kb-primary;
+        background: #fff;
+        border-color: $kb-primary;
+
+        &:hover {
+          color: lighten($kb-primary, 8%);
+          border-color: lighten($kb-primary, 8%);
+        }
+      }
+    }
+  }
+}
+
+// ------------ 构建中 ------------
+.kb-build-progress {
+  @extend %flex-center;
+  flex-direction: column;
+  height: 240px;
+
+  .kb-progress-circle {
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    background: conic-gradient($kb-primary 0%, #e5e7eb 0%);
+    position: relative;
+
+    &::after {
+      content: attr(data-percent);
+      position: absolute;
+      inset: 12px;
+      border-radius: 50%;
+      background: $kb-card-bg;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      font-weight: 600;
+      color: $kb-primary;
+    }
+  }
+
+  .kb-status-msg {
+    margin-top: 16px;
+    font-size: 18px;
+    color: $kb-text;
+  }
+
+  .kb-stop-btn {
+    margin-top: 24px;
+  }
+}
+
+// ------------ 预览区域 ------------
+.kb-preview {
+  .kb-alert {
+    padding: 12px 16px;
+    margin-bottom: 16px;
+    border-radius: $kb-radius;
+    background: lighten($kb-success, 40%);
+    color: darken($kb-success, 8%);
+    border: 1px solid lighten($kb-success, 30%);
+  }
+
+  .kb-kg-view {
+    width: 100%;
+    height: 400px;
+    border: 1px solid $kb-border;
+    border-radius: $kb-radius;
+    background: $kb-card-bg;
+  }
+
+  .kb-footer-actions {
+    margin-top: 24px;
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+  }
+}
+
+// ------------ 响应式 ------------
+@media (max-width: 768px) {
+  .kb-container {
+    padding: 12px;
+
+    .kb-card-body {
+      padding: 16px;
+    }
+
+    .kb-actions,
+    .kb-footer-actions {
+      flex-direction: column;
+
+      .kb-btn {
+        width: 100%;
+      }
+    }
+  }
+}

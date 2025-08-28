@@ -1,69 +1,88 @@
 <template>
   <!-- 模板部分与您提供的完全相同，无需改动 -->
   <div class="rag-page-container p-4">
-    <Card title="智能问答助手" :body-style="{ padding: 0 }" class="full-height-card">
-      <template #extra>
-        <a-space>
-          <a-button @click="showModal('kb')">查看知识库</a-button>
-          <a-button @click="showModal('kg')">查看知识图谱</a-button>
-        </a-space>
-      </template>
-      <div class="chat-container">
-        <!-- 对话展示区域 -->
-        <div class="message-list" ref="messageListRef">
-          <div v-for="(message, index) in messages" :key="index" :class="['message-item', message.role]">
-            <div class="avatar">
-              {{ message.role === 'user' ? '我' : '答' }}
-            </div>
-            <div class="message-content">
-              <div v-if="message.isTyping">
-                <a-spin />
+    <Builder
+      v-if="viewState === 'building'"
+      @build-completed="switchToChat"
+      @skip-build="switchToChat"
+    />
+
+    <div v-else-if="viewState === 'chatting'" class="chat-page-wrapper">
+      <Card title="智能问答助手" :body-style="{ padding: 0 }" class="full-height-card">
+        <template #extra>
+          <a-space>
+            <a-button @click="showModal('kb')">查看知识库</a-button>
+            <a-button @click="showModal('kg')">查看知识图谱</a-button>
+          </a-space>
+        </template>
+        <div class="chat-container">
+          <!-- 对话展示区域 -->
+          <div class="message-list" ref="messageListRef">
+            <div v-for="(message, index) in messages" :key="index" :class="['message-item', message.role]">
+              <div class="avatar">
+                {{ message.role === 'user' ? '我' : '答' }}
               </div>
-              <!-- 使用 v-html 和 DOMPurify 进行安全渲染 -->
-              <div v-else v-html="secureRenderMarkdown(message.content)"></div>
+              <div class="message-content">
+                <div v-if="message.isTyping">
+                  <a-spin />
+                </div>
+                <!-- 使用 v-html 和 DOMPurify 进行安全渲染 -->
+                <div v-else v-html="secureRenderMarkdown(message.content)"></div>
+              </div>
             </div>
           </div>
-        </div>
 
-        <!-- 输入区域 -->
-        <div class="input-area">
-          <a-textarea
-            v-model:value="userInput"
-            placeholder="请输入你的问题，按 Enter 发送..."
-            :auto-size="{ minRows: 1, maxRows: 5 }"
-            @keypress.enter.prevent="handleSendMessage"
-            :disabled="isLoading"
-          />
-          <!-- 根据 isLoading 状态显示不同按钮 -->
-          <a-button v-if="!isLoading" type="primary" @click="handleSendMessage" class="ml-2">发送</a-button>
-          <a-button v-else danger @click="stopGeneration" class="ml-2">停止</a-button>
+          <!-- 输入区域 -->
+          <div class="input-area">
+            <a-textarea
+              v-model:value="userInput"
+              placeholder="请输入你的问题，按 Enter 发送..."
+              :auto-size="{ minRows: 1, maxRows: 5 }"
+              @keypress.enter.prevent="handleSendMessage"
+              :disabled="isLoading"
+            />
+            <!-- 根据 isLoading 状态显示不同按钮 -->
+            <a-button v-if="!isLoading" type="primary" @click="handleSendMessage" class="ml-2">发送</a-button>
+            <a-button v-else danger @click="stopGeneration" class="ml-2">停止</a-button>
+          </div>
         </div>
-      </div>
-    </Card>
+      </Card>
 
-    <a-modal v-model:visible="modalVisible" :title="modalTitle" width="80%" :footer="null" destroyOnClose>
-      <docuview v-if="modalContent === 'kb'" />
-      <kgview v-if="modalContent === 'kg'" :visible="modalVisible"/>
-    </a-modal>
+      <!-- 
+        [FIXED] 移除了未使用的 a-drawer 组件。
+        这个组件是导致页面初始时出现不必要的 "加载中" 动画并扰乱布局的根源。
+      -->
+
+      <a-modal v-model:open ="modalVisible" :title="modalTitle" width="80%" :footer="null" destroyOnClose>
+        <docuview v-if="modalContent === 'kb'" />
+        <kgview v-if="modalContent === 'kg'" />
+      </a-modal>
+  </div>
   </div>
 </template>
 
 <script lang="ts" setup>
-import { ref, nextTick, shallowRef,computed } from 'vue';
+import { ref, nextTick, shallowRef,computed,defineAsyncComponent } from 'vue';
 import { Card, Input, Button, Spin, message as AntMessage, Space, Modal  } from 'ant-design-vue';
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
-import { useAccessStore } from '@vben/stores'; // 引入用于获取 Token 的 store
-import docuview from './docuview.vue'
-import kgview from './kgview.vue';
-// 确保你的项目中存在 @vben/stores 并导出了 useAccessStore
-// 如果你的 store 不叫这个名字，请替换成你项目中实际的 store
-// 组件别名
+import { useAccessStore } from '@vben/stores'; 
+
+const Builder = defineAsyncComponent(() => import('./builder.vue'));
+const docuview = defineAsyncComponent(() => import('./docuview.vue'));
+const kgview = defineAsyncComponent(() => import('./kgview.vue'));
+
+type ViewState = 'building' | 'chatting';
+const viewState = ref<ViewState>('building'); 
+
+const switchToChat = () => {
+  viewState.value = 'chatting';
+};
+
 const ASpace = Space;
 const AModal = Modal;
 const ATextarea = Input.TextArea;
 
-// 强制同步渲染
 marked.setOptions({ async: false });
 
 interface Message {
@@ -82,6 +101,8 @@ const messageListRef = ref<HTMLElement | null>(null);
 const eventSource = shallowRef<EventSource | null>(null);
 const accessStore = useAccessStore();
 
+// --- [FIXED] 移除了所有与 a-drawer 相关的逻辑 ---
+
 const scrollToBottom = () => {
   nextTick(() => {
     const el = messageListRef.value;
@@ -98,14 +119,12 @@ const stopGeneration = () => {
     eventSource.value = null;
   }
   isLoading.value = false;
-  // 如果最后一个消息仍在输入状态，则移除它
   const lastMessage = messages.value[messages.value.length - 1];
   if (lastMessage && lastMessage.isTyping) {
     messages.value.pop();
   }
 };
 
-// 核心发送逻辑，现在接收一个问题作为参数
 const sendQuery = (question: string) => {
   if (!question || isLoading.value) return;
 
@@ -152,7 +171,7 @@ const sendQuery = (question: string) => {
         return;
       }
     } catch (e) {
-      // 忽略解析错误，继续处理
+      // 忽略解析错误
     }
 
     try {
@@ -176,7 +195,6 @@ const sendQuery = (question: string) => {
   };
 };
 
-// 用户通过输入框发送消息的处理器
 const handleSendMessage = () => {
   const question = userInput.value.trim();
   if (question) {
@@ -199,13 +217,11 @@ const showModal = (type: 'kb' | 'kg') => {
   modalVisible.value = true;
 };
 
-// --- 新增代码 ---
-// 通过 defineExpose 暴露 sendQuery 方法
 defineExpose({
   sendQuery,
 });
 </script>
 
 <style scoped>
-@import './literag.scss'; /* 确保这个路径是正确的 */
+@import './literag.scss';
 </style>

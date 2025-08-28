@@ -3,6 +3,8 @@
   "extends": "@vben/tsconfig/web-app.json",
   "compilerOptions": {
     "baseUrl": ".",
+    // "moduleResolution": "node",
+    // "types": ["vite/client"],
     "paths": {
       "@/*": ["./src/*"],
       "#/*": ["./src/*"]

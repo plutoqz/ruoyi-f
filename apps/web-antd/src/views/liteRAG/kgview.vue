@@ -6,158 +6,110 @@
 
   <!-- 图表容器 -->
   <div v-show="!loading" ref="chartRef" class="chart-box"></div>
+
+  <!-- 添加一个侧边栏用于显示节点/边的详细信息 -->
+  <Drawer :visible="!!selectedElement" :title="drawerTitle" @close="selectedElement = null" :width="400">
+    <pre v-if="selectedElement?.properties">{{ JSON.stringify(selectedElement.properties, null, 2) }}</pre>
+  </Drawer>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, nextTick, watch } from 'vue';
-import { Spin, message } from 'ant-design-vue';
-import * as echarts from 'echarts';
-import { getKnowledgeGraph } from './rag';
+import { ref, onMounted, onUnmounted, watch, computed,nextTick } from 'vue';
+import { Spin, message, Drawer } from 'ant-design-vue';
+import { Network } from 'vis-network/standalone/esm/vis-network.min.js';
+import 'vis-network/styles/vis-network.css';
+import { getFullGraphFromNeo4j } from './rag'; // 需要在 rag.ts 中创建这个新函数
+import type { GraphData } from './rag';
 
-// 从父组件传入 modal 是否可见
+
 const props = defineProps<{
-  visible: boolean
+  // 接收一个可选的“数据加载函数” prop
+  graphDataLoader?: () => Promise<GraphData>; 
 }>();
-
-const loading = ref(false); // 初始为 false，仅在实际加载时为 true
+const loading = ref(true);
 const chartRef = ref<HTMLElement | null>(null);
-let chartInstance: echarts.ECharts | null = null;
+let networkInstance: Network | null = null;
 
-// 图表自适应
-const resizeChart = () => {
-  chartInstance?.resize();
-};
+// 用于详情展示
+const selectedElement = ref<any>(null);
+const drawerTitle = computed(() => selectedElement.value?.type === 'node' ? '节点详情' : '关系详情');
 
-const initChart = async () => {
-  // 防止重复初始化
-  if (chartInstance) {
-    return;
-  }
 
-  // 确保 DOM 元素存在
-  if (!chartRef.value) {
-    await nextTick();
-    if (!chartRef.value) {
-      console.error("无法找到图表容器元素。");
-      message.error("图表渲染失败：未找到容器。");
-      return;
-    }
-  }
+const initNetwork = async () => {
+    if (networkInstance || !chartRef.value) return;
+    loading.value = true;
+    try {
+        const loader = props.graphDataLoader || (() => getFullGraphFromNeo4j(200));
+        const graphData: GraphData = await loader();
 
-  loading.value = true;
-  const start = Date.now();
-
-  try {
-    const data = await getKnowledgeGraph();
-    console.log('【调试】收到的图谱数据:', data);
-
-    if (!data?.nodes?.length) {
-      message.warn('知识图谱中没有可显示的数据。');
-      // 注意：即使没有数据，也会继续执行 finally 块来关闭 loading
-    } else {
-      // 1. 创建一个从类别名称到索引的映射
-      const categoryMap = new Map<string, number>();
-      data.categories.forEach((c: { name: string }, index: number) => {
-        categoryMap.set(c.name, index);
-      });
-
-      // 2. 转换节点数据，将 category 名称替换为索引
-      const transformedNodes = data.nodes.map((node: any) => ({
-        ...node,
-        category: categoryMap.get(node.category) ?? 0,
-      }));
-
-      // 初始化 ECharts 实例
-      chartInstance = echarts.init(chartRef.value);
-      chartInstance.setOption({
-        // title: { text: '知识图谱', left: 'center' },
-        tooltip: {
-          formatter: (params: any) => {
-            if (params.dataType === 'node') {
-              return `<b>${params.data.name}</b><br/>${params.data.value || ''}`;
-            }
-            if (params.dataType === 'edge') {
-              return params.data.label?.formatter || '';
-            }
-            return '';
+        const nodes = graphData.nodes.map(n => ({
+            id: `node-${n.id}`,
+            label: n.label,
+            title: `类型: ${n.type}`, // 鼠标悬浮提示
+            group: n.type,
+            properties: n.properties,
+            type: 'node'
+        }));
+        const seenEdgeIds = new Set();
+        const uniqueEdges = graphData.edges.filter(edge => {
+          if (seenEdgeIds.has(edge.id)) {
+            return false;
+          }else {
+            seenEdgeIds.add(edge.id);
+            return true;
           }
-        },
-        legend: [{
-          data: data.categories.map((a: any) => a.name),
-          orient: 'vertical',
-          right: 10,
-          top: 20
-        }],
-        series: [{
-          type: 'graph',
-          layout: 'force',
-          data: transformedNodes, // 使用转换后的数据
-          links: data.links,
-          categories: data.categories,
-          roam: true,
-          label: {
-            show: true,
-            position: 'right',
-            formatter: '{b}'
-          },
-          force: {
-            repulsion: 150,
-            edgeLength: 60
-          },
-          edgeSymbol: ['circle', 'arrow'],
-          edgeSymbolSize: [4, 8]
-        }]
-      });
-      window.addEventListener('resize', resizeChart);
-    }
-  } catch (error) {
-    console.error('加载知识图谱失败', error);
-    message.error('加载知识图谱失败，请查看控制台获取详情。');
-  } finally {
-    // 确保 loading 动画至少显示 300 毫秒，避免闪烁
-    const elapsed = Date.now() - start;
-    const delay = Math.max(0, 300 - elapsed);
-    setTimeout(() => {
-      loading.value = false;
-      // 在 loading 结束后，DOM 变为可见，此时再执行 resize
-      nextTick(() => {
-        chartInstance?.resize();
-      });
-    }, delay);
-  }
+
+        });
+        const edges = uniqueEdges.map(e => ({
+            id: `edge-${e.id}`,
+            from: `node-${e.source}`,
+            to: `node-${e.target}`,
+            label: e.label, // 在边上显示关系名称
+            arrows: 'to',
+            properties: e.properties,
+            type: 'edge'
+        }));
+
+        const data = { nodes, edges };
+        const options = {
+            nodes: { shape: 'dot', size: 20 },
+            edges: { font: { align: 'top' } },
+            physics: { stabilization: false },
+            interaction: { hover: true },
+        };
+
+        networkInstance = new Network(chartRef.value, data, options);
+        
+        // 添加点击事件
+        networkInstance.on('click', (params) => {
+            if (params.nodes.length > 0) {
+                const nodeId = params.nodes[0];
+                selectedElement.value = nodes.find(n => n.id === nodeId);
+            } else if (params.edges.length > 0) {
+                const edgeId = params.edges[0];
+                selectedElement.value = edges.find(e => e.id === edgeId); // vis-network 的 edge id 是自动生成的
+            } else {
+                selectedElement.value = null;
+            }
+        });
+
+    } catch(e) {console.error("加载图谱失败:", e); 
+        const errorMessage = e instanceof Error ? e.message : String(e);
+        message.error(`加载图谱失败: ${errorMessage}`);}
+    finally { loading.value = false; }
 };
 
-watch(
-  () => props.visible,
-  (isVisible) => {
-    if (isVisible) {
-      // 当 modal 变为可见时，等待其动画（约300ms）完成后再执行操作
-      setTimeout(() => {
-        if (!chartInstance) {
-          initChart(); // 如果是第一次打开，则初始化
-        } else {
-          // 如果已经初始化过，仅需调整大小
-          nextTick(() => {
-            chartInstance?.resize();
-          });
-        }
-      }, 300);
-    }
-  }
-);
+// watch(() => props.visible, (isVisible) => {
+//     if (isVisible) {
+//       setTimeout(initNetwork, 300);
+//     }
+// });
 
 onMounted(() => {
-  // 处理初始状态就是可见的情况
-  if (props.visible) {
-    setTimeout(initChart, 300);
-  }
+  nextTick(initNetwork);   // 组件一挂载就初始化
 });
 
-onUnmounted(() => {
-  window.removeEventListener('resize', resizeChart);
-  chartInstance?.dispose();
-  chartInstance = null; // 彻底清理
-});
+onUnmounted(() => { networkInstance?.destroy(); });
 </script>
 
 <style scoped>

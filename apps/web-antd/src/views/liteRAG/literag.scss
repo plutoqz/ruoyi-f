@@ -1,28 +1,22 @@
-// literag.scss
-
 .rag-page-container {
   display: flex;
   flex-direction: column;
-  // 设置一个固定的总高度，这是让内部元素撑满的基础
-  height: calc(90vh ); //- 120px
+  height: calc(100vh - 120px);
 }
 
 .full-height-card {
   display: flex;
   flex-direction: column;
   flex-grow: 1;
-  // 【关键修复 1】确保 Card 能正确处理其子元素的溢出
-  overflow: hidden; 
+  overflow: hidden;
 }
 
-// deep 选择器确保我们能修改 Ant Design 组件的内部样式
 :deep(.ant-card-body) {
   display: flex;
   flex-direction: column;
   flex-grow: 1;
   height: 100%;
-  // 【关键修复 2】从这里移除 overflow: hidden，把它交给 .message-list 自己处理
-  overflow: auto; 
+  overflow: auto;
   padding: 0;
 }
 
@@ -30,43 +24,44 @@
   display: flex;
   flex-direction: column;
   height: 100%;
-  /* 新增：限制最大高度，让滚动条一定出现在 .message-list 内部 */
   max-height: 100%;
 }
 
 .message-list {
-  flex: 1 1 auto;          // 自适应剩余高度
-  min-height: 0;           // 必须！防止 flex 子项溢出
-  max-height: 100%;        // 再锁一次，避免突破父级
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: 100%;
   overflow-y: auto;
   padding: 24px;
   background-color: #f7f8fa;
 }
+
 .input-area {
   display: flex;
   align-items: center;
   padding: 16px;
   border-top: 1px solid #e8e8e8;
   background-color: #fff;
-  // 确保输入区域不会被压缩
-  flex-shrink: 0; 
+  flex-shrink: 0;
 }
 
-// 其他样式（.message-item, .avatar 等）保持不变即可
 .message-item {
   display: flex;
   margin-bottom: 20px;
   max-width: 80%;
 }
+
 @media (max-width: 768px) {
   .message-item {
     max-width: 90%;
   }
 }
+
 .message-item.user {
   margin-left: auto;
   flex-direction: row-reverse;
 }
+
 .avatar {
   width: 40px;
   height: 40px;
@@ -79,9 +74,11 @@
   font-size: 18px;
   flex-shrink: 0;
 }
+
 .message-item.assistant .avatar {
   background-color: #722ed1;
 }
+
 .message-content {
   background-color: white;
   padding: 10px 15px;
@@ -90,9 +87,22 @@
   box-shadow: 0 1px 3px rgba(0,0,0,0.05);
   line-height: 1.6;
 }
+
 :deep(.message-content p:last-child) {
   margin-bottom: 0;
 }
+
 .message-item.user .message-content {
   background-color: #95de64;
 }
+
+.chat-page-wrapper {
+  height: 100%;
+}
+
+.chat-card {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
