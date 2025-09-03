@@ -1,13 +1,16 @@
 <template>
-  <!-- 模板部分与您提供的完全相同，无需改动 -->
   <div class="rag-page-container p-4">
+    <!-- 
+      [核心修复] 使用 v-show 而不是 v-if。
+      v-show 只是切换 CSS display，不会销毁和重建组件，能与 <KeepAlive> 更好地协同工作。
+    -->
     <Builder
-      v-if="viewState === 'building'"
+      v-show="viewState === 'building'"
       @build-completed="switchToChat"
       @skip-build="switchToChat"
     />
 
-    <div v-else-if="viewState === 'chatting'" class="chat-page-wrapper">
+    <div v-show="viewState === 'chatting'" class="chat-page-wrapper">
       <Card title="智能问答助手" :body-style="{ padding: 0 }" class="full-height-card">
         <template #extra>
           <a-space>
@@ -16,7 +19,6 @@
           </a-space>
         </template>
         <div class="chat-container">
-          <!-- 对话展示区域 -->
           <div class="message-list" ref="messageListRef">
             <div v-for="(message, index) in messages" :key="index" :class="['message-item', message.role]">
               <div class="avatar">
@@ -24,15 +26,12 @@
               </div>
               <div class="message-content">
                 <div v-if="message.isTyping">
-                  <a-spin />
+                  <Spin />
                 </div>
-                <!-- 使用 v-html 和 DOMPurify 进行安全渲染 -->
                 <div v-else v-html="secureRenderMarkdown(message.content)"></div>
               </div>
             </div>
           </div>
-
-          <!-- 输入区域 -->
           <div class="input-area">
             <a-textarea
               v-model:value="userInput"
@@ -41,74 +40,57 @@
               @keypress.enter.prevent="handleSendMessage"
               :disabled="isLoading"
             />
-            <!-- 根据 isLoading 状态显示不同按钮 -->
             <a-button v-if="!isLoading" type="primary" @click="handleSendMessage" class="ml-2">发送</a-button>
             <a-button v-else danger @click="stopGeneration" class="ml-2">停止</a-button>
           </div>
         </div>
       </Card>
-
-      <!-- 
-        [FIXED] 移除了未使用的 a-drawer 组件。
-        这个组件是导致页面初始时出现不必要的 "加载中" 动画并扰乱布局的根源。
-      -->
-
-      <a-modal v-model:open ="modalVisible" :title="modalTitle" width="80%" :footer="null" destroyOnClose>
+      <a-modal v-model:open="modalVisible" :title="modalTitle" width="80%" :footer="null" destroyOnClose>
         <docuview v-if="modalContent === 'kb'" />
         <kgview v-if="modalContent === 'kg'" />
       </a-modal>
-  </div>
+    </div>
   </div>
 </template>
 
 <script lang="ts" setup>
-import { ref, nextTick, shallowRef,computed,defineAsyncComponent } from 'vue';
-import { Card, Input, Button, Spin, message as AntMessage, Space, Modal  } from 'ant-design-vue';
+// [核心] 导入 KeepAlive 需要的 onActivated 和 onDeactivated
+import { ref, nextTick, shallowRef, computed, onUnmounted, onActivated, onDeactivated } from 'vue';
+import { Card, Input, Button, Spin, message as AntMessage, Space, Modal } from 'ant-design-vue';
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
 import { useAccessStore } from '@vben/stores'; 
+// 使用同步导入，确保组件在父组件挂载时已就绪
+import Builder from './builder.vue'; 
+import docuview from './docuview.vue';
+import kgview from './kgview.vue';
 
-const Builder = defineAsyncComponent(() => import('./builder.vue'));
-const docuview = defineAsyncComponent(() => import('./docuview.vue'));
-const kgview = defineAsyncComponent(() => import('./kgview.vue'));
-
+// --- 视图状态 ---
 type ViewState = 'building' | 'chatting';
-const viewState = ref<ViewState>('building'); 
+const viewState = ref<ViewState>('building');
 
 const switchToChat = () => {
   viewState.value = 'chatting';
 };
 
+// --- 你的原始代码和状态 (完整保留) ---
 const ASpace = Space;
 const AModal = Modal;
 const ATextarea = Input.TextArea;
-
 marked.setOptions({ async: false });
-
-interface Message {
-  role: 'user' | 'assistant';
-  content: string;
-  isTyping?: boolean;
-}
-
-const messages = ref<Message[]>([
-  { role: 'assistant', content: '你好！有什么可以帮助你的吗？' }
-]);
-
+interface Message { role: 'user' | 'assistant'; content: string; isTyping?: boolean; }
+const messages = ref<Message[]>([{ role: 'assistant', content: '你好！有什么可以帮助你的吗？' }]);
 const userInput = ref('');
 const isLoading = ref(false);
 const messageListRef = ref<HTMLElement | null>(null);
 const eventSource = shallowRef<EventSource | null>(null);
 const accessStore = useAccessStore();
 
-// --- [FIXED] 移除了所有与 a-drawer 相关的逻辑 ---
-
 const scrollToBottom = () => {
   nextTick(() => {
     const el = messageListRef.value;
     if (el) {
-      const last = el.lastElementChild;
-      last?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+      el.lastElementChild?.scrollIntoView({ behavior: 'smooth', block: 'end' });
     }
   });
 };
@@ -117,24 +99,22 @@ const stopGeneration = () => {
   if (eventSource.value) {
     eventSource.value.close();
     eventSource.value = null;
+    console.log('[index.vue] EventSource connection closed.');
   }
   isLoading.value = false;
-  const lastMessage = messages.value[messages.value.length - 1];
-  if (lastMessage && lastMessage.isTyping) {
+  const lastMessage = messages.value.at(-1);
+  if (lastMessage?.isTyping) {
     messages.value.pop();
   }
 };
 
 const sendQuery = (question: string) => {
   if (!question || isLoading.value) return;
-
   messages.value.push({ role: 'user', content: question });
   scrollToBottom();
-
   messages.value.push({ role: 'assistant', content: '', isTyping: true });
   isLoading.value = true;
   scrollToBottom();
-  
   const token = accessStore.accessToken;
   if (!token) {
     AntMessage.error('用户认证失败，请重新登录');
@@ -146,23 +126,16 @@ const sendQuery = (question: string) => {
     isLoading.value = false;
     return;
   }
-  
   const sseUrl = `/api/system/rag/stream-query?question=${encodeURIComponent(question)}`;
-  
-  eventSource.value = new EventSource(sseUrl, {
-    withCredentials: true 
-  });
-
+  eventSource.value = new EventSource(sseUrl, { withCredentials: true });
   const lastMessage = messages.value.at(-1)!;
   lastMessage.isTyping = false;
-
   eventSource.value.onmessage = (event) => {
     const data = event.data;
     if (data === '[DONE]') {
       stopGeneration();
       return;
     }
-    
     try {
       const errorObj = JSON.parse(data);
       if (errorObj.error) {
@@ -170,10 +143,7 @@ const sendQuery = (question: string) => {
         stopGeneration();
         return;
       }
-    } catch (e) {
-      // 忽略解析错误
-    }
-
+    } catch (e) { /* ignore */ }
     try {
       const textChunk = JSON.parse(data);
       if (typeof textChunk === 'string') {
@@ -181,10 +151,9 @@ const sendQuery = (question: string) => {
         scrollToBottom();
       }
     } catch (parseError) {
-      console.error("无法解析收到的 SSE 数据:", data, parseError);
+      console.error("Cannot parse SSE data:", data, parseError);
     }
   };
-
   eventSource.value.onerror = (error) => {
     console.error('EventSource failed:', error);
     const lastMessage = messages.value.at(-1);
@@ -208,7 +177,6 @@ const secureRenderMarkdown = (text: string) => {
   return DOMPurify.sanitize(rawHtml);
 };
 
-// Modal 相关逻辑
 const modalVisible = ref(false);
 const modalContent = ref<'kb' | 'kg'>('kb');
 const modalTitle = computed(() => modalContent.value === 'kb' ? '知识库文档' : '知识图谱');
@@ -216,6 +184,25 @@ const showModal = (type: 'kb' | 'kg') => {
   modalContent.value = type;
   modalVisible.value = true;
 };
+
+// --- [核心修复] 为 index.vue 添加自己的生命周期管理 ---
+onActivated(() => {
+  console.log('[index.vue] Activated.');
+  // 每次进入页面时，重置到初始的“构建”视图，确保状态可预测
+  viewState.value = 'building';
+});
+
+onDeactivated(() => {
+  console.log('[index.vue] Deactivated.');
+  // 离开页面时，清理聊天相关的资源，防止泄漏
+  stopGeneration();
+});
+
+onUnmounted(() => {
+  console.log('[index.vue] Unmounted.');
+  // 彻底销毁时，也执行清理
+  stopGeneration();
+});
 
 defineExpose({
   sendQuery,
